@@ -28,7 +28,7 @@ class MalariaDetectorApp extends StatelessWidget {
       valueListenable: AppState.themeNotifier,
       builder: (context, currentMode, _) {
         return MaterialApp(
-          title: 'Malaria Detector',
+          title: 'MalariaGuard',
           themeMode: currentMode,
           theme: ThemeData(
             brightness: Brightness.light,
@@ -245,7 +245,7 @@ class DashboardView extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Text(
-                              'Malaria Detector',
+                              'MalariaGuard',
                               style: TextStyle(
                                   fontSize: 18, fontWeight: FontWeight.bold),
                             ),

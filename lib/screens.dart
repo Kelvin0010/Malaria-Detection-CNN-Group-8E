@@ -999,12 +999,12 @@ class SettingsScreen extends StatelessWidget {
               ),
               const Divider(),
               ListTile(
-                title: const Text('About Malaria Detector'),
+                title: const Text('About MalariaGuard'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   showAboutDialog(
                     context: context,
-                    applicationName: 'Malaria Detector',
+                    applicationName: 'MalariaGuard',
                     applicationVersion: '1.0.0',
                     applicationIcon: const Icon(Icons.science, size: 48),
                   );

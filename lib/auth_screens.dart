@@ -79,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Icon(Icons.science, size: 80, color: Colors.white),
                     SizedBox(height: 16),
                     Text(
-                      'Malaria Detector',
+                      'MalariaGuard',
                       style: TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,

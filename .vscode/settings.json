@@ -1,0 +1,10 @@
+{
+    "files.exclude": {
+        "**/build/**": true
+    },
+    "search.exclude": {
+        "**/build/**": true
+    },
+    "java.autobuild.enabled": false,
+    "java.import.gradle.enabled": false
+}

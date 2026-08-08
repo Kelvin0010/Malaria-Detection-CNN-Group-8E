@@ -2,10 +2,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
-import 'state.dart';
-import 'auth_screens.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_service.dart';
+import 'state.dart';
+import 'chat_screen.dart';
+
+void _deferAction(VoidCallback callback) {
+  Future.microtask(callback);
+}
 
 // --- Shared Widgets ---
 Widget buildStatusPill(String status, bool isParasitized) {
@@ -28,6 +32,440 @@ Widget buildStatusPill(String status, bool isParasitized) {
   );
 }
 
+// --- Dashboard View (Used in Bottom Nav) ---
+class DashboardView extends StatelessWidget {
+  final VoidCallback onSeeAllClicked;
+  const DashboardView({super.key, required this.onSeeAllClicked});
+
+  @override
+  Widget build(BuildContext context) {
+    debugPrint('DashboardView build called');
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Curved Header
+              Container(
+                height: 240,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [primaryColor, const Color(0xFF7C8DFF)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(40),
+                    bottomRight: Radius.circular(40),
+                  ),
+                ),
+                padding: const EdgeInsets.only(top: 60, left: 24, right: 24),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ValueListenableBuilder<ProfileData>(
+                          valueListenable: AppState.profileNotifier,
+                          builder: (context, profile, _) {
+                            final firstName = (profile.name.isNotEmpty
+                                ? profile.name.split(" ").first
+                                : 'User');
+                            return Text(
+                              'Hello, $firstName!',
+                              style: const TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Ready for today\'s diagnoses?',
+                          style: TextStyle(fontSize: 16, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        _deferAction(() {
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const NotificationsScreen()));
+                        });
+                      },
+                      child: const CircleAvatar(
+                        backgroundColor: Colors.white24,
+                        child: Icon(Icons.notifications, color: Colors.white),
+                      ),
+                    )
+                  ],
+                ),
+              ),
+              // Overlapping Card
+              Positioned(
+                top: 150,
+                left: 24,
+                right: 24,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      )
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child:
+                            Icon(Icons.science, color: primaryColor, size: 32),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'MalariaGuard',
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Tap the + button to start a scan',
+                              style: TextStyle(
+                                  fontSize: 14, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 50), // Space for overlapping card
+
+          // Categories Grid
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Categories',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildCategoryIcon(context, Icons.analytics, 'Reports',
+                        const Color(0xFF4A64FE), () {
+                      _deferAction(() {
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const ReportsScreen()));
+                      });
+                    }),
+                    _buildCategoryIcon(context, Icons.people, 'Patients',
+                        const Color(0xFF00C853), () {
+                      _deferAction(() {
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const PatientsScreen()));
+                      });
+                    }),
+                    _buildCategoryIcon(context, Icons.library_books,
+                        'Guidelines', const Color(0xFFFF9100), () {
+                      _deferAction(() {
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const GuidelinesScreen()));
+                      });
+                    }),
+                    _buildCategoryIcon(context, Icons.settings, 'Settings',
+                        const Color(0xFF9C27B0), () {
+                      _deferAction(() {
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const SettingsScreen()));
+                      });
+                    }),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // AI Chat Banner
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            child: GestureDetector(
+              onTap: () {
+                _deferAction(() {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ChatScreen()),
+                  );
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF3F51B5), Color(0xFF2196F3)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.indigo.withValues(alpha: 0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    )
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: const BoxDecoration(
+                        color: Colors.white24,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.psychology,
+                          color: Theme.of(context).colorScheme.surface,
+                          size: 28),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Consult Doctor AI',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.surface,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Get instant recommendations on symptoms, prevention, and treatment.',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Colors.white),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Recent Scans
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Recent Scans',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    TextButton(
+                      onPressed: onSeeAllClicked,
+                      child: const Text('See all'),
+                    )
+                  ],
+                ),
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseService().getScanHistory(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Text('Error: ${snapshot.error}');
+                    }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Center(
+                          child: Padding(
+                        padding: EdgeInsets.all(24.0),
+                        child: Text('No recent scans.'),
+                      ));
+                    }
+
+                    // Take only top 3 scans
+                    final docs = snapshot.data!.docs.take(3).toList();
+
+                    return Column(
+                      children: docs.map((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final status = data['status'] as String? ?? 'Unknown';
+                        final isParasitized = status == 'Parasitized';
+
+                        String timeAgo = 'Just now';
+                        if (data['timestamp'] != null) {
+                          final timestamp = data['timestamp'] as Timestamp;
+                          final diff =
+                              DateTime.now().difference(timestamp.toDate());
+                          if (diff.inDays > 0) {
+                            timeAgo = '${diff.inDays} days ago';
+                          } else if (diff.inHours > 0) {
+                            timeAgo = '${diff.inHours} hours ago';
+                          } else if (diff.inMinutes > 0) {
+                            timeAgo = '${diff.inMinutes} mins ago';
+                          }
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: _buildHistoryCard(
+                              context, 'Scan', timeAgo, status, isParasitized),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+                const SizedBox(height: 80), // Space for bottom nav
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryIcon(BuildContext context, IconData icon, String label,
+      Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, color: color, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryCard(BuildContext context, String title, String date,
+      String status, bool isParasitized) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          )
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.image, color: Colors.grey[400]),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 4),
+                Text(date,
+                    style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: isParasitized
+                  ? Colors.red.withValues(alpha: 0.1)
+                  : Colors.green.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              status,
+              style: TextStyle(
+                color: isParasitized ? Colors.red : Colors.green,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // --- History View (Used in Bottom Nav) ---
 class HistoryView extends StatefulWidget {
   const HistoryView({super.key});
@@ -37,8 +475,8 @@ class HistoryView extends StatefulWidget {
 }
 
 class _HistoryViewState extends State<HistoryView> {
-  final FirebaseService _firebaseService = FirebaseService();
   String _filter = 'All';
+  final FirebaseService _firebaseService = FirebaseService();
 
   @override
   Widget build(BuildContext context) {
@@ -193,6 +631,7 @@ class ProfileView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('ProfileView build called');
     return SingleChildScrollView(
       child: Column(
         children: [
@@ -208,11 +647,25 @@ class ProfileView extends StatelessWidget {
             child: ValueListenableBuilder<ProfileData>(
               valueListenable: AppState.profileNotifier,
               builder: (context, profile, _) {
+                debugPrint('ProfileView build: imagePath=${profile.imagePath}');
                 ImageProvider? avatarImage;
-                if (profile.imagePath != null) {
-                  avatarImage = kIsWeb
-                      ? NetworkImage(profile.imagePath!)
-                      : FileImage(File(profile.imagePath!)) as ImageProvider;
+                if (profile.imagePath != null &&
+                    profile.imagePath!.isNotEmpty) {
+                  try {
+                    if (kIsWeb) {
+                      avatarImage = NetworkImage(profile.imagePath!);
+                    } else {
+                      final file = File(profile.imagePath!);
+                      if (file.existsSync()) {
+                        avatarImage = FileImage(file) as ImageProvider;
+                      } else {
+                        debugPrint(
+                            'ProfileView image file not found: ${profile.imagePath}');
+                      }
+                    }
+                  } catch (e) {
+                    debugPrint('ProfileView avatar image error: $e');
+                  }
                 }
 
                 return Column(
@@ -231,15 +684,19 @@ class ProfileView extends StatelessWidget {
                         ),
                         GestureDetector(
                           onTap: () {
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => const EditProfileScreen()));
+                            _deferAction(() {
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          const EditProfileScreen()));
+                            });
                           },
                           child: Container(
                             padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                                color: Colors.white, shape: BoxShape.circle),
+                            decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.surface,
+                                shape: BoxShape.circle),
                             child: Icon(Icons.edit,
                                 size: 20,
                                 color: Theme.of(context).primaryColor),
@@ -256,14 +713,36 @@ class ProfileView extends StatelessWidget {
                     Text(profile.title,
                         style: const TextStyle(color: Colors.white70)),
                     const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildStatCard('Scans', '1,204'),
-                        const SizedBox(width: 16),
-                        _buildStatCard('Accuracy', '98.5%'),
-                      ],
-                    )
+                    StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseService().getScanHistory(),
+                        builder: (context, snapshot) {
+                          int totalScans = 0;
+                          double avgConfidence = 0.0;
+
+                          if (snapshot.hasData) {
+                            totalScans = snapshot.data!.docs.length;
+                            double totalConf = 0.0;
+                            for (var doc in snapshot.data!.docs) {
+                              final data = doc.data() as Map<String, dynamic>;
+                              totalConf +=
+                                  (data['confidence'] as num?)?.toDouble() ??
+                                      0.0;
+                            }
+                            if (totalScans > 0) {
+                              avgConfidence = totalConf / totalScans;
+                            }
+                          }
+
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildStatCard('Scans', '$totalScans'),
+                              const SizedBox(width: 16),
+                              _buildStatCard('Accuracy',
+                                  '${avgConfidence.toStringAsFixed(1)}%'),
+                            ],
+                          );
+                        })
                   ],
                 );
               },
@@ -315,8 +794,10 @@ class ProfileView extends StatelessWidget {
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
         trailing: const Icon(Icons.chevron_right, color: Colors.grey),
         onTap: () {
-          Navigator.push(
-              context, MaterialPageRoute(builder: (_) => destination));
+          _deferAction(() {
+            Navigator.push(
+                context, MaterialPageRoute(builder: (_) => destination));
+          });
         },
       ),
     );
@@ -367,10 +848,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     ImageProvider? avatarImage;
-    if (_selectedImagePath != null) {
-      avatarImage = kIsWeb
-          ? NetworkImage(_selectedImagePath!)
-          : FileImage(File(_selectedImagePath!)) as ImageProvider;
+    if (_selectedImagePath != null && _selectedImagePath!.isNotEmpty) {
+      try {
+        if (kIsWeb) {
+          avatarImage = NetworkImage(_selectedImagePath!);
+        } else {
+          final file = File(_selectedImagePath!);
+          if (file.existsSync()) {
+            avatarImage = FileImage(file) as ImageProvider;
+          } else {
+            debugPrint(
+                'EditProfileScreen image file not found: $_selectedImagePath');
+          }
+        }
+      } catch (e) {
+        debugPrint('EditProfileScreen avatar load error: $e');
+      }
     }
 
     return Scaffold(
@@ -399,8 +892,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     decoration: BoxDecoration(
                         color: Theme.of(context).primaryColor,
                         shape: BoxShape.circle),
-                    child: const Icon(Icons.camera_alt,
-                        color: Colors.white, size: 20),
+                    child: Icon(Icons.camera_alt,
+                        color: Theme.of(context).colorScheme.surface, size: 20),
                   )
                 ],
               ),
@@ -636,101 +1129,128 @@ class ReportsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Analytics & Reports')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Monthly Overview',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                    child: _buildMetricCard(context, 'Total Scans', '428',
-                        Icons.document_scanner, Colors.blue)),
-                const SizedBox(width: 16),
-                Expanded(
-                    child: _buildMetricCard(context, 'Positive Rate', '14%',
-                        Icons.coronavirus, Colors.red)),
-              ],
-            ),
-            const SizedBox(height: 32),
-            const Text('Diagnostic Confidence',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-            Container(
+      body: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseService().getScanHistory(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
+
+            final docs = snapshot.data?.docs ?? [];
+            final totalScans = docs.length;
+
+            int positiveCount = 0;
+            double totalConfidence = 0.0;
+
+            for (var doc in docs) {
+              final data = doc.data() as Map<String, dynamic>;
+              if (data['status'] == 'Parasitized') {
+                positiveCount++;
+              }
+              totalConfidence +=
+                  (data['confidence'] as num?)?.toDouble() ?? 0.0;
+            }
+
+            final positiveRate =
+                totalScans == 0 ? 0.0 : (positiveCount / totalScans) * 100;
+
+            final avgConfidence =
+                totalScans == 0 ? 0.0 : totalConfidence / totalScans;
+
+            return SingleChildScrollView(
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(20)),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    height: 120,
-                    width: 120,
-                    child: Stack(
-                      fit: StackFit.expand,
+                  const Text('Overview',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _buildMetricCard(
+                              context,
+                              'Total Scans',
+                              '$totalScans',
+                              Icons.document_scanner,
+                              Colors.blue)),
+                      const SizedBox(width: 16),
+                      Expanded(
+                          child: _buildMetricCard(
+                              context,
+                              'Positive Rate',
+                              '${positiveRate.toStringAsFixed(1)}%',
+                              Icons.coronavirus,
+                              Colors.red)),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  const Text('Diagnostic Confidence',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 24),
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(20)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(
-                            value: 0.95,
-                            strokeWidth: 12,
-                            backgroundColor: Colors.grey[200],
-                            color: Colors.green),
-                        const Center(
-                            child: Text('95%',
-                                style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold))),
+                        SizedBox(
+                          height: 120,
+                          width: 120,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CircularProgressIndicator(
+                                  value: totalScans == 0
+                                      ? 0.0
+                                      : avgConfidence / 100,
+                                  strokeWidth: 12,
+                                  backgroundColor: Colors.grey[200],
+                                  color: Colors.green),
+                              Center(
+                                  child: Text(
+                                      '${avgConfidence.toStringAsFixed(1)}%',
+                                      style: const TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold))),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 32),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                  avgConfidence > 90
+                                      ? 'High Accuracy'
+                                      : 'Normal Accuracy',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18)),
+                              const SizedBox(height: 8),
+                              Text(
+                                  totalScans == 0
+                                      ? 'Perform a scan to see your average AI confidence.'
+                                      : 'The AI model is operating with ${avgConfidence.toStringAsFixed(1)}% average confidence across all $totalScans scans.',
+                                  style: const TextStyle(color: Colors.grey)),
+                            ],
+                          ),
+                        )
                       ],
                     ),
                   ),
-                  const SizedBox(width: 32),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('High Accuracy',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 18)),
-                        SizedBox(height: 8),
-                        Text(
-                            'The AI model is operating with 95% average confidence across all smears this week.',
-                            style: TextStyle(color: Colors.grey)),
-                      ],
-                    ),
-                  )
                 ],
               ),
-            ),
-            const SizedBox(height: 32),
-            const Text('Weekly Volume',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-            Container(
-              height: 200,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(20)),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  _buildMockBar(0.4, 'Mon'),
-                  _buildMockBar(0.7, 'Tue'),
-                  _buildMockBar(0.5, 'Wed'),
-                  _buildMockBar(0.9, 'Thu'),
-                  _buildMockBar(0.6, 'Fri'),
-                  _buildMockBar(0.3, 'Sat'),
-                  _buildMockBar(0.2, 'Sun'),
-                ],
-              ),
-            )
-          ],
-        ),
-      ),
+            );
+          }),
     );
   }
 
@@ -754,29 +1274,19 @@ class ReportsScreen extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildMockBar(double heightFactor, String label) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Container(
-          width: 20,
-          height: 120 * heightFactor,
-          decoration: BoxDecoration(
-            color: const Color(0xFF4A64FE),
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-      ],
-    );
-  }
 }
 
 // --- Patients Screen ---
-class PatientsScreen extends StatelessWidget {
+class PatientsScreen extends StatefulWidget {
   const PatientsScreen({super.key});
+
+  @override
+  State<PatientsScreen> createState() => _PatientsScreenState();
+}
+
+class _PatientsScreenState extends State<PatientsScreen> {
+  String _searchQuery = '';
+  String _filterStatus = 'All'; // 'All', 'Parasitized', 'Uninfected'
 
   @override
   Widget build(BuildContext context) {
@@ -784,44 +1294,178 @@ class PatientsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Patient Directory')),
       body: Column(
         children: [
+          // Search & Filter header
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: TextField(
+              onChanged: (val) =>
+                  setState(() => _searchQuery = val.toLowerCase()),
               decoration: InputDecoration(
-                hintText: 'Search patients...',
+                hintText: 'Search patient by name or ID...',
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none),
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ),
+          // Filter Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                _buildFilterChip('All'),
+                const SizedBox(width: 8),
+                _buildFilterChip('Parasitized'),
+                const SizedBox(width: 8),
+                _buildFilterChip('Uninfected'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Patients List from Firestore
           Expanded(
-            child: ListView.builder(
-              itemCount: 12,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                  leading: CircleAvatar(
-                    backgroundColor:
-                        Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                    child: Text('P${index + 1}',
-                        style:
-                            TextStyle(color: Theme.of(context).primaryColor)),
-                  ),
-                  title: Text('Patient ${index + 1}',
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('ID: #883${index}2'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) =>
-                                PatientDetailsScreen(patientId: index + 1)));
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseService().getPatients(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+
+                final docs = snapshot.data?.docs ?? [];
+                // Filter docs based on search and status chip
+                final filtered = docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final name = (data['name'] ?? '').toString().toLowerCase();
+                  final patientId =
+                      (data['patientId'] ?? '').toString().toLowerCase();
+                  final status = (data['status'] ?? '').toString();
+
+                  bool matchesSearch = name.contains(_searchQuery) ||
+                      patientId.contains(_searchQuery);
+                  bool matchesFilter =
+                      _filterStatus == 'All' || status == _filterStatus;
+
+                  return matchesSearch && matchesFilter;
+                }).toList();
+
+                if (filtered.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.person_off_outlined,
+                            size: 64, color: Colors.grey[400]),
+                        const SizedBox(height: 16),
+                        Text(
+                          docs.isEmpty
+                              ? 'No patient records found.\nPerform a scan to auto-create patient records.'
+                              : 'No patients matching filter.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final doc = filtered[index];
+                    final data = doc.data() as Map<String, dynamic>;
+                    final docId = doc.id;
+                    final patientId = data['patientId'] ?? 'BS-000';
+                    final name = (data['name'] != null &&
+                            data['name'].toString().isNotEmpty)
+                        ? data['name'].toString()
+                        : 'Unnamed Patient';
+                    final status = data['status'] ?? 'Unknown';
+                    final isParasitized = status == 'Parasitized';
+
+                    return Dismissible(
+                      key: Key(docId),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 24),
+                        color: Colors.red,
+                        child: const Icon(Icons.delete, color: Colors.white),
+                      ),
+                      confirmDismiss: (direction) async {
+                        return await showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Delete Patient Record'),
+                            content: Text(
+                                'Are you sure you want to delete patient record $patientId?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('Delete',
+                                    style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      onDismissed: (_) {
+                        FirebaseService().deletePatient(docId);
+                      },
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 6),
+                        leading: CircleAvatar(
+                          backgroundColor: isParasitized
+                              ? Colors.red.withValues(alpha: 0.1)
+                              : Colors.green.withValues(alpha: 0.1),
+                          child: Text(
+                            patientId.replaceAll('BS-', '#'),
+                            style: TextStyle(
+                              color: isParasitized ? Colors.red : Colors.green,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        title: Text(name,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('Sample ID: $patientId'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            buildStatusPill(status, isParasitized),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.chevron_right,
+                                size: 20, color: Colors.grey),
+                          ],
+                        ),
+                        onTap: () {
+                          _deferAction(() {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    PatientDetailsScreen(docId: docId),
+                              ),
+                            );
+                          });
+                        },
+                      ),
+                    );
                   },
                 );
               },
@@ -831,71 +1475,359 @@ class PatientsScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildFilterChip(String label) {
+    bool isSelected = _filterStatus == label;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        setState(() => _filterStatus = label);
+      },
+      selectedColor: Theme.of(context).primaryColor.withValues(alpha: 0.2),
+      checkmarkColor: Theme.of(context).primaryColor,
+    );
+  }
 }
 
 // --- Patient Details Screen ---
 class PatientDetailsScreen extends StatelessWidget {
-  final int patientId;
-  const PatientDetailsScreen({super.key, required this.patientId});
+  final String docId;
+  const PatientDetailsScreen({super.key, required this.docId});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(FirebaseService().currentUser?.uid)
+          .collection('patients')
+          .doc(docId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Patient Details')),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Patient Details')),
+            body: const Center(child: Text('Patient record not found.')),
+          );
+        }
+
+        final data = snapshot.data!.data() as Map<String, dynamic>;
+        final patientId = data['patientId'] ?? 'BS-000';
+        final name =
+            (data['name'] != null && data['name'].toString().isNotEmpty)
+                ? data['name'].toString()
+                : 'Unnamed Patient';
+        final address =
+            (data['address'] != null && data['address'].toString().isNotEmpty)
+                ? data['address'].toString()
+                : 'Not specified';
+        final contact =
+            (data['contact'] != null && data['contact'].toString().isNotEmpty)
+                ? data['contact'].toString()
+                : 'Not specified';
+        final gender =
+            (data['gender'] != null && data['gender'].toString().isNotEmpty)
+                ? data['gender'].toString()
+                : 'Not specified';
+        final status = data['status'] ?? 'Unknown';
+        final confidence = (data['confidence'] as num?)?.toDouble() ?? 0.0;
+        final isParasitized = status == 'Parasitized';
+
+        DateTime? scanDate;
+        if (data['scanDate'] is Timestamp) {
+          scanDate = (data['scanDate'] as Timestamp).toDate();
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(name),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.edit),
+                tooltip: 'Edit Patient Details',
+                onPressed: () {
+                  _deferAction(() {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            EditPatientScreen(docId: docId, initialData: data),
+                      ),
+                    );
+                  });
+                },
+              ),
+            ],
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: CircleAvatar(
+                    radius: 46,
+                    backgroundColor: isParasitized
+                        ? Colors.red.withValues(alpha: 0.1)
+                        : Colors.green.withValues(alpha: 0.1),
+                    child: Text(
+                      patientId,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isParasitized ? Colors.red : Colors.green,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Center(
+                  child: Text(
+                    'Sample ID: $patientId • Gender: $gender',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 16),
+                const Text('Contact & Address',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                ListTile(
+                  leading: const Icon(Icons.phone_outlined),
+                  title: const Text('Contact'),
+                  subtitle: Text(contact),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.location_on_outlined),
+                  title: const Text('Address'),
+                  subtitle: Text(address),
+                ),
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 16),
+                const Text('Scan Result',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Card(
+                  elevation: 0,
+                  color: Theme.of(context).colorScheme.surface,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Diagnostic Status',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16)),
+                            buildStatusPill(status, isParasitized),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('AI Confidence',
+                                style: TextStyle(color: Colors.grey)),
+                            Text('${confidence.toStringAsFixed(1)}%',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        if (scanDate != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Scan Date',
+                                  style: TextStyle(color: Colors.grey)),
+                              Text(
+                                '${scanDate.day}/${scanDate.month}/${scanDate.year} ${scanDate.hour.toString().padLeft(2, '0')}:${scanDate.minute.toString().padLeft(2, '0')}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// --- Edit Patient Screen ---
+class EditPatientScreen extends StatefulWidget {
+  final String docId;
+  final Map<String, dynamic> initialData;
+  const EditPatientScreen(
+      {super.key, required this.docId, required this.initialData});
+
+  @override
+  State<EditPatientScreen> createState() => _EditPatientScreenState();
+}
+
+class _EditPatientScreenState extends State<EditPatientScreen> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late TextEditingController _addressController;
+  late TextEditingController _contactController;
+  String _gender = 'Other';
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController =
+        TextEditingController(text: widget.initialData['name'] ?? '');
+    _addressController =
+        TextEditingController(text: widget.initialData['address'] ?? '');
+    _contactController =
+        TextEditingController(text: widget.initialData['contact'] ?? '');
+    final existingGender = widget.initialData['gender'] ?? 'Other';
+    if (['Male', 'Female', 'Other'].contains(existingGender)) {
+      _gender = existingGender;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _addressController.dispose();
+    _contactController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await FirebaseService().updatePatient(widget.docId, {
+        'name': _nameController.text.trim(),
+        'address': _addressController.text.trim(),
+        'contact': _contactController.text.trim(),
+        'gender': _gender,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Patient details updated successfully')),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update patient: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Patient $patientId')),
+      appBar: AppBar(
+        title: const Text('Edit Patient Details'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: CircleAvatar(
-                radius: 50,
-                backgroundColor:
-                    Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                child: Text('P$patientId',
-                    style: TextStyle(
-                        fontSize: 32, color: Theme.of(context).primaryColor)),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Patient Full Name',
+                  prefixIcon: Icon(Icons.person),
+                ),
+                validator: (val) => val == null || val.trim().isEmpty
+                    ? 'Please enter a name'
+                    : null,
               ),
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: Text('Patient $patientId',
-                  style: const TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.bold)),
-            ),
-            Center(
-              child: Text('ID: #883${patientId}2 • Male • 34 yrs',
-                  style: const TextStyle(color: Colors.grey)),
-            ),
-            const SizedBox(height: 32),
-            const Text('Medical History',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            Card(
-              elevation: 0,
-              color: Theme.of(context).colorScheme.surface,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              child: ListTile(
-                title: const Text('Blood Smear Analysis',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Date: 2 days ago'),
-                trailing: buildStatusPill('Uninfected', false),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _contactController,
+                decoration: const InputDecoration(
+                  labelText: 'Contact Phone / Email',
+                  prefixIcon: Icon(Icons.phone),
+                ),
+                keyboardType: TextInputType.phone,
               ),
-            ),
-            Card(
-              elevation: 0,
-              color: Theme.of(context).colorScheme.surface,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              child: ListTile(
-                title: const Text('Blood Smear Analysis',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Date: 4 months ago'),
-                trailing: buildStatusPill('Parasitized', true),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _addressController,
+                decoration: const InputDecoration(
+                  labelText: 'Residential Address',
+                  prefixIcon: Icon(Icons.home),
+                ),
+                maxLines: 2,
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _gender,
+                decoration: const InputDecoration(
+                  labelText: 'Gender',
+                  prefixIcon: Icon(Icons.wc),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'Male', child: Text('Male')),
+                  DropdownMenuItem(value: 'Female', child: Text('Female')),
+                  DropdownMenuItem(value: 'Other', child: Text('Other')),
+                ],
+                onChanged: (val) {
+                  if (val != null) setState(() => _gender = val);
+                },
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isSaving ? null : _save,
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Save Patient Details'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1002,12 +1934,14 @@ class SettingsScreen extends StatelessWidget {
                 title: const Text('About MalariaGuard'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
-                  showAboutDialog(
-                    context: context,
-                    applicationName: 'MalariaGuard',
-                    applicationVersion: '1.0.0',
-                    applicationIcon: const Icon(Icons.science, size: 48),
-                  );
+                  _deferAction(() {
+                    showAboutDialog(
+                      context: context,
+                      applicationName: 'MalariaGuard',
+                      applicationVersion: '1.0.0',
+                      applicationIcon: const Icon(Icons.science, size: 48),
+                    );
+                  });
                 },
               ),
               ListTile(
@@ -1015,30 +1949,31 @@ class SettingsScreen extends StatelessWidget {
                     const Text('Logout', style: TextStyle(color: Colors.red)),
                 leading: const Icon(Icons.exit_to_app, color: Colors.red),
                 onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      title: const Text('Logout'),
-                      content: const Text('Are you sure you want to log out?'),
-                      actions: [
-                        TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Cancel')),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const LoginScreen()),
-                              (route) => false,
-                            );
-                          },
-                          child: const Text('Logout',
-                              style: TextStyle(color: Colors.red)),
-                        ),
-                      ],
-                    ),
-                  );
+                  _deferAction(() {
+                    showDialog(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Logout'),
+                        content:
+                            const Text('Are you sure you want to log out?'),
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Cancel')),
+                          TextButton(
+                            onPressed: () async {
+                              await FirebaseService().logout();
+                              if (!context.mounted) return;
+                              Navigator.pushNamedAndRemoveUntil(
+                                  context, '/login', (route) => false);
+                            },
+                            child: const Text('Logout',
+                                style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      ),
+                    );
+                  });
                 },
               ),
             ],

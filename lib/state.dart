@@ -17,8 +17,8 @@ class AppState {
   
   static final ValueNotifier<ProfileData> profileNotifier = ValueNotifier(
     ProfileData(
-      name: 'Dr. John Doe',
-      title: 'Diagnostic Specialist',
+      name: '',
+      title: '',
     ),
   );
 }

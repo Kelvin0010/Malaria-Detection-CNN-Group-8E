@@ -41,48 +41,48 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyATsOmND_Ju2ZcTbwrXxvMybtEcm_RccQo',
-    appId: '1:564371797028:web:213cab78e25f4eee7654b1',
-    messagingSenderId: '564371797028',
-    projectId: 'malaria-detection-48dc4',
-    authDomain: 'malaria-detection-48dc4.firebaseapp.com',
-    storageBucket: 'malaria-detection-48dc4.firebasestorage.app',
-    measurementId: 'G-51QNVX965Q',
+    apiKey: 'AIzaSyCGXsRGWNCFl171y1Ewcc-deFSNj_T5Qvs',
+    appId: '1:96497259178:web:6a06592e4c645639a5f6d3',
+    messagingSenderId: '96497259178',
+    projectId: 'malaria-detector-82b86',
+    authDomain: 'malaria-detector-82b86.firebaseapp.com',
+    storageBucket: 'malaria-detector-82b86.firebasestorage.app',
+    measurementId: 'G-RR8Y9CPY29',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDi64FRvGvcIvsNqrq-tyS19oIQPllVBi0',
-    appId: '1:564371797028:android:01cf2d8e892f75327654b1',
-    messagingSenderId: '564371797028',
-    projectId: 'malaria-detection-48dc4',
-    storageBucket: 'malaria-detection-48dc4.firebasestorage.app',
+    apiKey: 'AIzaSyCtbGwQWUYPCQbY-6FlhEhgdOf9SMvq9v4',
+    appId: '1:96497259178:android:4ae70c23af82269fa5f6d3',
+    messagingSenderId: '96497259178',
+    projectId: 'malaria-detector-82b86',
+    storageBucket: 'malaria-detector-82b86.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAJUvRYiJghrTHbTLGTq9nRygpw53_ixRk',
-    appId: '1:564371797028:ios:a1c14635905487007654b1',
-    messagingSenderId: '564371797028',
-    projectId: 'malaria-detection-48dc4',
-    storageBucket: 'malaria-detection-48dc4.firebasestorage.app',
+    apiKey: 'AIzaSyCGXsRGWNCFl171y1Ewcc-deFSNj_T5Qvs',
+    appId: '1:96497259178:ios:6a06592e4c645639a5f6d3',
+    messagingSenderId: '96497259178',
+    projectId: 'malaria-detector-82b86',
+    storageBucket: 'malaria-detector-82b86.firebasestorage.app',
     iosBundleId: 'com.example.malariaApp',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyAJUvRYiJghrTHbTLGTq9nRygpw53_ixRk',
-    appId: '1:564371797028:ios:a1c14635905487007654b1',
-    messagingSenderId: '564371797028',
-    projectId: 'malaria-detection-48dc4',
-    storageBucket: 'malaria-detection-48dc4.firebasestorage.app',
+    apiKey: 'AIzaSyCGXsRGWNCFl171y1Ewcc-deFSNj_T5Qvs',
+    appId: '1:96497259178:ios:6a06592e4c645639a5f6d3',
+    messagingSenderId: '96497259178',
+    projectId: 'malaria-detector-82b86',
+    storageBucket: 'malaria-detector-82b86.firebasestorage.app',
     iosBundleId: 'com.example.malariaApp',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyATsOmND_Ju2ZcTbwrXxvMybtEcm_RccQo',
-    appId: '1:564371797028:web:16f00f228657152b7654b1',
-    messagingSenderId: '564371797028',
-    projectId: 'malaria-detection-48dc4',
-    authDomain: 'malaria-detection-48dc4.firebaseapp.com',
-    storageBucket: 'malaria-detection-48dc4.firebasestorage.app',
-    measurementId: 'G-S2TNDQRKNC',
+    apiKey: 'AIzaSyCGXsRGWNCFl171y1Ewcc-deFSNj_T5Qvs',
+    appId: '1:96497259178:web:6a06592e4c645639a5f6d3',
+    messagingSenderId: '96497259178',
+    projectId: 'malaria-detector-82b86',
+    authDomain: 'malaria-detector-82b86.firebaseapp.com',
+    storageBucket: 'malaria-detector-82b86.firebasestorage.app',
+    measurementId: 'G-RR8Y9CPY29',
   );
 }

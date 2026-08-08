@@ -1,432 +1,176 @@
-import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'screens.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'state.dart';
+
 import 'ml_service.dart';
-import 'auth_screens.dart';
-import 'firebase_options.dart';
+import 'firebase_service.dart';
+import 'screens.dart';
+import 'chat_screen.dart';
 
-void _deferAction(VoidCallback callback) {
-  Future.microtask(callback);
+class MainLayout extends StatefulWidget {
+  const MainLayout({super.key});
+
+  @override
+  State<MainLayout> createState() => _MainLayoutState();
 }
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+class _MainLayoutState extends State<MainLayout> {
+  int _currentIndex = 0;
+  late final ErrorWidgetBuilder _previousErrorWidgetBuilder;
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  @override
+  void initState() {
+    super.initState();
+    debugPrint('MainLayout initState called');
+    _previousErrorWidgetBuilder = ErrorWidget.builder;
+    ErrorWidget.builder = (FlutterErrorDetails details) {
+      final message = details.exceptionAsString();
+      debugPrint('MainLayout ErrorWidget.builder called: $message');
+      return Container(
+        color: Colors.white,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline,
+                size: 56, color: Theme.of(context).primaryColor),
+            const SizedBox(height: 16),
+            const Text('Something went wrong',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
+    };
+  }
 
-  FlutterError.onError = (details) {
-    FlutterError.presentError(details);
-    debugPrint('FlutterError caught: ${details.exceptionAsString()}');
-  };
+  @override
+  void dispose() {
+    ErrorWidget.builder = _previousErrorWidgetBuilder;
+    super.dispose();
+  }
 
-  PlatformDispatcher.instance.onError = (error, stack) {
-    debugPrint('PlatformDispatcher error: $error');
-    debugPrintStack(stackTrace: stack);
-    return true;
-  };
+  void _showScanSheet() {
+    Future.microtask(() {
+      try {
+        if (!mounted) return;
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => const ScanBottomSheet(),
+        );
+      } catch (e, stackTrace) {
+        debugPrint('Failed to open scan sheet: $e');
+        debugPrintStack(stackTrace: stackTrace);
+        _showErrorSnackbar('Unable to open scan sheet. Please try again.');
+      }
+    });
+  }
 
-  runApp(const MalariaDetectorApp());
-}
-
-class MalariaDetectorApp extends StatelessWidget {
-  const MalariaDetectorApp({super.key});
+  void _showErrorSnackbar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('MalariaDetectorApp build called');
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: AppState.themeNotifier,
-      builder: (context, currentMode, _) {
-        return MaterialApp(
-          title: 'MalariaGuard',
-          themeMode: currentMode,
-          theme: ThemeData(
-            brightness: Brightness.light,
-            primaryColor: const Color(0xFF4A64FE), // Deep vibrant blue/indigo
-            scaffoldBackgroundColor:
-                const Color(0xFFF4F7FC), // Soft light background
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF4A64FE),
-              secondary: Color(0xFF10B981),
-              surface: Colors.white,
-            ),
-            fontFamily: 'Roboto',
-            useMaterial3: true,
+    debugPrint('MainLayout build, currentIndex=$_currentIndex');
+    return Scaffold(
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          _buildViewWithErrorBoundary(
+            'Dashboard',
+            DashboardView(
+                onSeeAllClicked: () => setState(() => _currentIndex = 1)),
           ),
-          darkTheme: ThemeData(
-            brightness: Brightness.dark,
-            primaryColor: const Color(0xFF4A64FE),
-            scaffoldBackgroundColor: const Color(0xFF0F172A),
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF4A64FE),
-              secondary: Color(0xFF10B981),
-              surface: Color(0xFF1E293B),
-              onSurface: Colors.white,
-            ),
-            cardTheme: const CardThemeData(
-              color: Color(0xFF1E293B),
-              elevation: 2,
-            ),
-            dialogTheme: const DialogThemeData(
-              backgroundColor: Color(0xFF1E293B),
-            ),
-            bottomSheetTheme: const BottomSheetThemeData(
-              backgroundColor: Color(0xFF1E293B),
-            ),
-            bottomAppBarTheme: const BottomAppBarThemeData(
-              color: Color(0xFF1E293B),
-            ),
-            fontFamily: 'Roboto',
-            useMaterial3: true,
+          _buildViewWithErrorBoundary('History', const HistoryView()),
+          _buildViewWithErrorBoundary('Profile', const ProfileView()),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showScanSheet,
+        backgroundColor: Theme.of(context).primaryColor,
+        elevation: 4,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.document_scanner, color: Colors.white),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: BottomAppBar(
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8,
+        color: Theme.of(context).colorScheme.surface,
+        elevation: 10,
+        child: SizedBox(
+          height: 60,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              IconButton(
+                icon: Icon(Icons.home,
+                    color: _currentIndex == 0
+                        ? Theme.of(context).primaryColor
+                        : Colors.grey),
+                onPressed: () => setState(() => _currentIndex = 0),
+              ),
+              const SizedBox(width: 48), // Space for FAB
+              IconButton(
+                icon: Icon(Icons.person,
+                    color: _currentIndex == 2
+                        ? Theme.of(context).primaryColor
+                        : Colors.grey),
+                onPressed: () => setState(() => _currentIndex = 2),
+              ),
+            ],
           ),
-          home: const LoginScreen(),
-          routes: {
-            '/login': (_) => const LoginScreen(),
-          },
-        );
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewWithErrorBoundary(String name, Widget child) {
+    return Builder(
+      builder: (context) {
+        try {
+          return child;
+        } catch (e, stackTrace) {
+          debugPrint('Error in $name view: $e');
+          debugPrintStack(stackTrace: stackTrace);
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline,
+                    size: 48, color: Theme.of(context).primaryColor),
+                const SizedBox(height: 16),
+                Text('Error loading $name'),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    e.toString(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
       },
     );
   }
 }
 
-// --- Dashboard View (Used in Bottom Nav) ---
-class DashboardView extends StatelessWidget {
-  final VoidCallback onSeeAllClicked;
-  const DashboardView({super.key, required this.onSeeAllClicked});
-
-  @override
-  Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).primaryColor;
-
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // Curved Header
-              Container(
-                height: 240,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [primaryColor, const Color(0xFF7C8DFF)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(40),
-                    bottomRight: Radius.circular(40),
-                  ),
-                ),
-                padding: const EdgeInsets.only(top: 60, left: 24, right: 24),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ValueListenableBuilder<ProfileData>(
-                          valueListenable: AppState.profileNotifier,
-                          builder: (context, profile, _) {
-                            final firstName = (profile.name.isNotEmpty
-                                ? profile.name.split(" ").first
-                                : 'User');
-                            return Text(
-                              'Hello, $firstName!',
-                              style: const TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Ready for today\'s diagnoses?',
-                          style: TextStyle(fontSize: 16, color: Colors.white70),
-                        ),
-                      ],
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        _deferAction(() {
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const NotificationsScreen()));
-                        });
-                      },
-                      child: const CircleAvatar(
-                        backgroundColor: Colors.white24,
-                        child: Icon(Icons.notifications, color: Colors.white),
-                      ),
-                    )
-                  ],
-                ),
-              ),
-              // Overlapping Card
-              Positioned(
-                top: 150,
-                left: 24,
-                right: 24,
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      )
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primaryColor.withValues(alpha: 0.1),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.asset('assets/app_icon.png',
-                              width: 42, height: 42, fit: BoxFit.cover),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'MalariaGuard',
-                              style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Tap the + button to start a scan',
-                              style: TextStyle(
-                                  fontSize: 14, color: Colors.grey[600]),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 50), // Space for overlapping card
-
-          // Categories Grid
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Categories',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildCategoryIcon(context, Icons.analytics, 'Reports',
-                        const Color(0xFF4A64FE), () {
-                      _deferAction(() {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const ReportsScreen()));
-                      });
-                    }),
-                    _buildCategoryIcon(context, Icons.people, 'Patients',
-                        const Color(0xFF00C853), () {
-                      _deferAction(() {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const PatientsScreen()));
-                      });
-                    }),
-                    _buildCategoryIcon(context, Icons.library_books,
-                        'Guidelines', const Color(0xFFFF9100), () {
-                      _deferAction(() {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const GuidelinesScreen()));
-                      });
-                    }),
-                    _buildCategoryIcon(context, Icons.settings, 'Settings',
-                        const Color(0xFF9C27B0), () {
-                      _deferAction(() {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const SettingsScreen()));
-                      });
-                    }),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // Recent Scans
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Recent Scans',
-                      style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    TextButton(
-                      onPressed: onSeeAllClicked,
-                      child: const Text('See all'),
-                    )
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildHistoryCard(context, 'Patient A - Smear', '2 hours ago',
-                    'Parasitized', true),
-                const SizedBox(height: 12),
-                _buildHistoryCard(context, 'Patient B - Smear', 'Yesterday',
-                    'Uninfected', false),
-                const SizedBox(height: 12),
-                _buildHistoryCard(context, 'Patient C - Smear', '2 days ago',
-                    'Uninfected', false),
-                const SizedBox(height: 80), // Space for bottom nav
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryIcon(BuildContext context, IconData icon, String label,
-      Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const SizedBox(height: 8),
-          Text(label,
-              style:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHistoryCard(BuildContext context, String title, String date,
-      String status, bool isParasitized) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          )
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.image, color: Colors.grey[400]),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 4),
-                Text(date,
-                    style: TextStyle(color: Colors.grey[500], fontSize: 13)),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: isParasitized
-                  ? Colors.red.withValues(alpha: 0.1)
-                  : Colors.green.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              status,
-              style: TextStyle(
-                color: isParasitized ? Colors.red : Colors.green,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// --- Scan Bottom Sheet ---
 class ScanBottomSheet extends StatefulWidget {
   const ScanBottomSheet({super.key});
 
@@ -443,6 +187,7 @@ class _ScanBottomSheetState extends State<ScanBottomSheet>
   String _invalidReason = '';
   final ImagePicker _picker = ImagePicker();
   final MLService _mlService = MLService();
+  final FirebaseService _firebaseService = FirebaseService();
   late AnimationController _scanController;
 
   @override
@@ -501,6 +246,19 @@ class _ScanBottomSheetState extends State<ScanBottomSheet>
     final confidence = (result['confidence'] as num).toDouble();
     final reason = result['reason'] as String? ?? '';
 
+    // Only save valid scan results to Firebase
+    if (status != 'Invalid') {
+      try {
+        await _firebaseService.saveScanResult(
+          status: status,
+          confidence: confidence,
+          imagePath: _imagePath,
+        );
+      } catch (e) {
+        debugPrint("Failed to save to Firebase: $e");
+      }
+    }
+
     if (mounted) {
       setState(() {
         _isProcessing = false;
@@ -515,9 +273,9 @@ class _ScanBottomSheetState extends State<ScanBottomSheet>
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
       child: Column(
         children: [
@@ -549,7 +307,7 @@ class _ScanBottomSheetState extends State<ScanBottomSheet>
                     child: Container(
                       height: 250,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).scaffoldBackgroundColor,
+                        color: Colors.grey[50],
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: _imagePath != null
@@ -797,6 +555,31 @@ class _ScanBottomSheetState extends State<ScanBottomSheet>
                                   : Colors.green,
                             ),
                           ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => ChatScreen(
+                                scanResult: _result,
+                                confidence: _confidence,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.chat_bubble_outline),
+                        label: const Text('Get AI Doctor Recommendations'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
                         ),
                       ),
                       const SizedBox(height: 24),

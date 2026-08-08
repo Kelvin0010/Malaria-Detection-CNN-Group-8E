@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>MalariaGuard needs camera access to capture blood smear images for malaria detection.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>MalariaGuard needs access to your photo library so you can select blood smear images for malaria analysis.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>MalariaGuard may save scan-related images to your photo library.</string>
 </dict>
 </plist>

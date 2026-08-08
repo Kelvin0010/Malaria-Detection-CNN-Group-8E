@@ -1,26 +1,81 @@
 {
   "project_info": {
-    "project_number": "564371797028",
-    "project_id": "malaria-detection-48dc4",
-    "storage_bucket": "malaria-detection-48dc4.firebasestorage.app"
+    "project_number": "96497259178",
+    "project_id": "malaria-detector-82b86",
+    "storage_bucket": "malaria-detector-82b86.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:564371797028:android:01cf2d8e892f75327654b1",
+        "mobilesdk_app_id": "1:96497259178:android:4ae70c23af82269fa5f6d3",
         "android_client_info": {
           "package_name": "com.example.malaria_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "96497259178-947k691iubfm9kqbnd8ojvauiljh89kf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.malaria_app",
+            "certificate_hash": "74506f61c8c023026177c90f0e7afee7ea93b38a"
+          }
+        },
+        {
+          "client_id": "96497259178-9q001flc8jst730ioip4tusb0ua2blj9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyDi64FRvGvcIvsNqrq-tyS19oIQPllVBi0"
+          "current_key": "AIzaSyCtbGwQWUYPCQbY-6FlhEhgdOf9SMvq9v4"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "96497259178-9q001flc8jst730ioip4tusb0ua2blj9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:96497259178:android:4ae70c23af82269fa5f6d3",
+        "android_client_info": {
+          "package_name": "malaria.etector"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "96497259178-947k691iubfm9kqbnd8ojvauiljh89kf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "malaria.etector",
+            "certificate_hash": "74506f61c8c023026177c90f0e7afee7ea93b38a"
+          }
+        },
+        {
+          "client_id": "96497259178-9q001flc8jst730ioip4tusb0ua2blj9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCtbGwQWUYPCQbY-6FlhEhgdOf9SMvq9v4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "96497259178-9q001flc8jst730ioip4tusb0ua2blj9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

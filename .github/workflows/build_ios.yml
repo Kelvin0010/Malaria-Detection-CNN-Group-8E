@@ -13,20 +13,22 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
       - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
+      - name: Precache Flutter iOS Engine
+        run: flutter precache --ios
+
       - name: Get Dependencies
         run: flutter pub get
+
+      - name: Install CocoaPods Dependencies
+        run: |
+          cd ios
+          pod install --repo-update
 
       - name: Build iOS App (Release, No Codesign)
         run: flutter build ios --release --no-codesign

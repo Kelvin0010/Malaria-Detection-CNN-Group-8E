@@ -51,5 +51,16 @@
 	<string>MalariaGuard needs access to your photo library so you can select blood smear images for malaria analysis.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>MalariaGuard may save scan-related images to your photo library.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.96497259178-sgn0925mbfd8d6073hb53j3jopq9jals</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

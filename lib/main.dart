@@ -22,6 +22,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await AppState.loadProfile();
 
   FlutterError.onError = (details) {
     FlutterError.presentError(details);

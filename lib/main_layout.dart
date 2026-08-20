@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -189,6 +189,13 @@ class _ScanBottomSheetState extends State<ScanBottomSheet>
   final MLService _mlService = MLService();
   final FirebaseService _firebaseService = FirebaseService();
   late AnimationController _scanController;
+
+  /// True only on Android / iOS — features like camera and TFLite
+  /// are not available on Windows / macOS / Linux desktop.
+  bool get _isMobilePlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 
   @override
   void initState() {
@@ -395,7 +402,8 @@ class _ScanBottomSheetState extends State<ScanBottomSheet>
                     ),
                   ),
                   const SizedBox(height: 16),
-                  if (_imagePath == null)
+                  // Camera capture is only available on mobile platforms
+                  if (_imagePath == null && _isMobilePlatform)
                     ElevatedButton.icon(
                       onPressed: () => _pickImage(ImageSource.camera),
                       icon: const Icon(Icons.camera_alt),

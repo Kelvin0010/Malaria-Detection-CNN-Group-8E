@@ -816,6 +816,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _titleController = TextEditingController();
   String? _selectedImagePath;
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
 
   @override
   void initState() {
@@ -824,6 +827,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController.text = profile.name;
     _titleController.text = profile.title;
     _selectedImagePath = profile.imagePath;
+    _emailController.text = profile.email;
+    _phoneController.text = profile.phone;
+    _locationController.text = profile.location;
   }
 
   Future<void> _pickImage() async {
@@ -835,11 +841,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   void _saveProfile() {
-    AppState.profileNotifier.value = ProfileData(
+    final updatedProfile = ProfileData(
       name: _nameController.text,
       title: _titleController.text,
       imagePath: _selectedImagePath,
+      email: _emailController.text,
+      phone: _phoneController.text,
+      location: _locationController.text,
     );
+    AppState.profileNotifier.value = updatedProfile;
+    // Persist locally and sync to Firebase
+    AppState.saveProfile(updatedProfile);
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile updated successfully!')));
@@ -910,6 +922,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               decoration: const InputDecoration(
                   labelText: 'Job Title', border: OutlineInputBorder()),
             ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _emailController,
+              decoration: const InputDecoration(
+                  labelText: 'Email', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _phoneController,
+              decoration: const InputDecoration(
+                  labelText: 'Phone', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _locationController,
+              decoration: const InputDecoration(
+                  labelText: 'Location', border: OutlineInputBorder()),
+            ),
             const SizedBox(height: 40),
             SizedBox(
               width: double.infinity,
@@ -935,8 +965,42 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 }
 
 // --- Profile Sub-Pages ---
-class PersonalInfoScreen extends StatelessWidget {
+class PersonalInfoScreen extends StatefulWidget {
   const PersonalInfoScreen({super.key});
+
+  @override
+  State<PersonalInfoScreen> createState() => _PersonalInfoScreenState();
+}
+
+class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final profile = AppState.profileNotifier.value;
+    _emailController.text = profile.email;
+    _phoneController.text = profile.phone;
+    _locationController.text = profile.location;
+  }
+
+  void _saveInfo() {
+    final profile = AppState.profileNotifier.value;
+    final updated = ProfileData(
+      name: profile.name,
+      title: profile.title,
+      imagePath: profile.imagePath,
+      email: _emailController.text,
+      phone: _phoneController.text,
+      location: _locationController.text,
+    );
+    AppState.profileNotifier.value = updated;
+    AppState.saveProfile(updated);
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Personal info saved successfully!')));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -944,19 +1008,41 @@ class PersonalInfoScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Personal Information')),
       body: ListView(
         padding: const EdgeInsets.all(24),
-        children: const [
-          ListTile(
-              title: Text('Email Address'),
-              subtitle: Text('doctor@hospital.com'),
-              leading: Icon(Icons.email)),
-          ListTile(
-              title: Text('Phone Number'),
-              subtitle: Text('+1 (555) 123-4567'),
-              leading: Icon(Icons.phone)),
-          ListTile(
-              title: Text('Location'),
-              subtitle: Text('Global Health Clinic, NY'),
-              leading: Icon(Icons.location_on)),
+        children: [
+          const SizedBox(height: 16),
+          TextField(
+            controller: _emailController,
+            decoration: const InputDecoration(
+                labelText: 'Email', border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _phoneController,
+            decoration: const InputDecoration(
+                labelText: 'Phone', border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _locationController,
+            decoration: const InputDecoration(
+                labelText: 'Location', border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 40),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _saveInfo,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+              ),
+              child: const Text('Save',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+          ),
         ],
       ),
     );
@@ -990,18 +1076,12 @@ class PrivacySecurityScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Privacy & Security')),
+      appBar: AppBar(title: const Text('Privacy \u0026 Security')),
       body: ListView(
-        children: [
-          SwitchListTile(
-              title: const Text('Biometric Login (Face/Touch ID)'),
-              value: true,
-              onChanged: (val) {}),
-          SwitchListTile(
-              title: const Text('Two-Factor Authentication'),
-              value: false,
-              onChanged: (val) {}),
-          const ListTile(
+        children: const [
+          ListTile(
+              title: Text('Security options coming soon')),
+          ListTile(
               title: Text('Change Password'),
               trailing: Icon(Icons.chevron_right)),
         ],
@@ -1043,79 +1123,60 @@ class NotificationsScreen extends StatelessWidget {
         title: const Text('Notifications'),
         actions: [
           TextButton(
-            onPressed: () {
+            onPressed: () async {
+              // Placeholder for clearing notifications
               ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Notifications cleared.')));
+                const SnackBar(content: Text('Notifications cleared.')),
+              );
             },
             child: const Text('Clear All'),
-          )
+          ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(bottom: 8.0),
-            child: Text('TODAY',
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-          ),
-          _buildNotificationCard(
-              context,
-              'New Report Available',
-              'Patient A\'s malaria smear analysis is complete.',
-              '2 mins ago',
-              true),
-          _buildNotificationCard(
-              context,
-              'System Update',
-              'The diagnostic AI model has been updated to v2.1.',
-              '1 hour ago',
-              false),
-          const SizedBox(height: 16),
-          const Padding(
-            padding: EdgeInsets.only(bottom: 8.0),
-            child: Text('YESTERDAY',
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-          ),
-          _buildNotificationCard(context, 'Meeting Reminder',
-              'Team sync in 30 minutes.', '1 day ago', false),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNotificationCard(BuildContext context, String title,
-      String subtitle, String time, bool isUnread) {
-    return Card(
-      elevation: 0,
-      color: isUnread
-          ? Theme.of(context).primaryColor.withValues(alpha: 0.05)
-          : Theme.of(context).colorScheme.surface,
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: isUnread
-            ? BorderSide(
-                color: Theme.of(context).primaryColor.withValues(alpha: 0.3))
-            : BorderSide.none,
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: CircleAvatar(
-          backgroundColor:
-              isUnread ? Theme.of(context).primaryColor : Colors.grey[200],
-          child: Icon(Icons.notifications,
-              color: isUnread ? Colors.white : Colors.grey[600]),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4.0),
-          child: Text(subtitle),
-        ),
-        trailing: Text(time,
-            style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseService().getScanHistory(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return const Center(child: Text('No notifications.'));
+          }
+          // Limit to the 5 most recent notifications
+          final recentDocs = docs.take(5).toList();
+          return ListView.builder(
+            itemCount: recentDocs.length,
+            itemBuilder: (context, index) {
+              final data = recentDocs[index].data() as Map<String, dynamic>;
+              final status = data['status'] as String? ?? 'Unknown';
+              final confidence = (data['confidence'] as num?)?.toDouble() ?? 0.0;
+              final timestamp = data['timestamp'];
+              String timeStr = '';
+              if (timestamp != null) {
+                if (timestamp is Timestamp) {
+                  timeStr = timestamp.toDate().toString();
+                } else {
+                  timeStr = timestamp.toString();
+                }
+              }
+              Icon leadingIcon = Icon(
+                status == 'Parasitized' ? Icons.warning : Icons.check_circle,
+                color: status == 'Parasitized' ? Colors.red : Colors.green,
+              );
+              return ListTile(
+                leading: leadingIcon,
+                title: Text(status),
+                subtitle: Text('Confidence: ${confidence.toStringAsFixed(1)}%'),
+                trailing: Text(timeStr, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                onTap: () {},
+              );
+            },
+          );
+        },
       ),
     );
   }

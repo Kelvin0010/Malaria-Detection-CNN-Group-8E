@@ -9,11 +9,12 @@ class MLService {
   late final Future<void> _initialization;
   List<int>? _outputShape; // will be populated after model load
 
-  // Class labels – for binary models we will use only Parasitized/Uninfected
+  // Class labels aligned with model output order:
+  // Index 0: Parasitized, Index 1: Uninfected, Index 2: Other (if present)
   static const List<String> _classLabels = [
-    'Other',
     'Parasitized',
-    'Uninfected'
+    'Uninfected',
+    'Other'
   ];
 
   MLService() {
@@ -32,74 +33,91 @@ class MLService {
   Future<Map<String, dynamic>> processImage(File imageFile) async {
     await _initialization;
 
+    // 1. Read and decode the image
+    final img.Image? decodedImage;
     try {
-      // 1. Read and decode the image
       final imageBytes = await imageFile.readAsBytes();
-      final decodedImage = img.decodeImage(imageBytes);
-      if (decodedImage == null) throw Exception("Failed to decode image");
+      decodedImage = img.decodeImage(imageBytes);
+    } catch (e) {
+      return {
+        'status': 'Invalid',
+        'confidence': 0.0,
+        'reason': 'Could not read or parse image file.',
+      };
+    }
 
+    if (decodedImage == null) {
+      return {
+        'status': 'Invalid',
+        'confidence': 0.0,
+        'reason': 'Failed to decode image. Please ensure it is a valid JPEG/PNG.',
+      };
+    }
+
+    // 2. Resize to 224x224 (MobileNetV2 expected size)
+    final resizedImage = img.copyResize(decodedImage, width: 224, height: 224);
+
+    // Simple brightness heuristic: if the image is excessively bright (typical of selfies),
+    // flag as Invalid to avoid mis‑classification.
+    // Compute average brightness (kept for potential future use)
+    double totalBrightness = 0.0;
+    final int totalPixels = resizedImage.width * resizedImage.height;
+    for (int y = 0; y < resizedImage.height; y++) {
+      for (int x = 0; x < resizedImage.width; x++) {
+        final pixel = resizedImage.getPixel(x, y);
+        totalBrightness += (pixel.r + pixel.g + pixel.b) / 3.0;
+      }
+    }
+    final avgBrightness = totalBrightness / totalPixels;
+
+    // ---- Giemsa hue filter ---------------------------------------------------
+    // Giemsa‑stained blood smears typically contain purple‑magenta hues (≈260°–340°).
+    // We count pixels whose hue falls in this range; if the proportion is low,
+    // the image is unlikely to be a blood smear.
+    int huePixelCount = 0;
+    for (int y = 0; y < resizedImage.height; y++) {
+      for (int x = 0; x < resizedImage.width; x++) {
+        final pixel = resizedImage.getPixel(x, y);
+        // Convert RGB (0‑255) to HSV hue (0‑360)
+        final double r = pixel.r / 255.0;
+        final double g = pixel.g / 255.0;
+        final double b = pixel.b / 255.0;
+        final double maxVal = [r, g, b].reduce((a, b) => a > b ? a : b);
+        final double minVal = [r, g, b].reduce((a, b) => a < b ? a : b);
+        double hue;
+        if (maxVal == minVal) {
+          hue = 0.0;
+        } else if (maxVal == r) {
+          hue = 60.0 * ((g - b) / (maxVal - minVal)) % 360.0;
+        } else if (maxVal == g) {
+          hue = 60.0 * ((b - r) / (maxVal - minVal) + 2.0);
+        } else {
+          hue = 60.0 * ((r - g) / (maxVal - minVal) + 4.0);
+        }
+        if (hue < 0) hue += 360.0;
+        if (hue >= 260.0 && hue <= 340.0) {
+          huePixelCount++;
+        }
+      }
+    }
+    final double hueRatio = huePixelCount / totalPixels;
+    if (hueRatio < 0.30) {
+      return {
+        'status': 'Invalid',
+        'confidence': 0.0,
+        'reason': 'Image lacks characteristic Giemsa hue; likely not a blood smear.',
+      };
+    }
+    // -----------------------------------------------------------------------
+
+
+    try {
       // Ensure the model is loaded; if not, return an error map.
       if (_interpreter == null) {
         return {
           'status': 'Error',
           'reason':
               'TFLite model failed to load. Check asset path and compatibility.',
-        };
-      }
-
-      // 2. Resize to 224x224 (MobileNetV2 expected size)
-      final resizedImage =
-          img.copyResize(decodedImage, width: 224, height: 224);
-
-      // Simple variance check – uniform images (e.g., solid background) are unlikely to be blood smears
-      double pixelVariance() {
-        double sum = 0.0;
-        double sumSq = 0.0;
-        for (int y = 0; y < resizedImage.height; y++) {
-          for (int x = 0; x < resizedImage.width; x++) {
-            final pixel = resizedImage.getPixel(x, y);
-            final r = pixel.r.toInt();
-            final g = pixel.g.toInt();
-            final b = pixel.b.toInt();
-            final intensity = (r + g + b) ~/ 3;
-            sum += intensity.toDouble();
-            sumSq += intensity.toDouble() * intensity.toDouble();
-          }
-        }
-        final n = resizedImage.width * resizedImage.height;
-        final mean = sum / n;
-        final variance = (sumSq / n) - (mean * mean);
-        return variance.toDouble();
-      }
-
-      if (pixelVariance() < 500) {
-        // Very low variance → likely not a blood smear
-        return {
-          'status': 'Invalid',
-          'confidence': 0.0,
-          'reason': 'Image appears uniform; not a blood smear.',
-        };
-      }
-
-      // After variance check, ensure the image has enough red content (blood smear is reddish)
-      double redMean() {
-        double sumRed = 0.0;
-        for (int y = 0; y < resizedImage.height; y++) {
-          for (int x = 0; x < resizedImage.width; x++) {
-            final pixel = resizedImage.getPixel(x, y);
-            sumRed += pixel.r.toInt();
-          }
-        }
-        final n = resizedImage.width * resizedImage.height;
-        return sumRed / (n * 255.0);
-      }
-
-      if (redMean() < 0.5) {
-        return {
-          'status': 'Invalid',
-          'confidence': 0.0,
-          'reason':
-              'Image lacks sufficient red coloration; likely not a blood smear.',
         };
       }
 
@@ -124,91 +142,72 @@ class MLService {
 
       // 5. Create output tensor based on the model's actual output shape
       late List<List<double>> outputTensor;
-      // Primary allocation based on reported shape
-      if (_outputShape != null &&
-          _outputShape!.length == 2 &&
-          _outputShape![1] == 3) {
-        outputTensor = List.generate(1, (_) => List.filled(3, 0.0));
+      if (_outputShape != null && _outputShape!.length == 2) {
+        outputTensor = [List.filled(_outputShape![1], 0.0)];
       } else {
-        // Assume binary output as safe fallback
-        outputTensor = List.generate(1, (_) => List.filled(1, 0.0));
+        // Fallback allocation
+        outputTensor = [List.filled(2, 0.0)];
       }
 
-      try {
-        // 6. Run inference
-        _interpreter!.run(inputTensor, outputTensor);
-      } catch (e) {
-        // If shape mismatch occurs, retry with binary output shape
-        outputTensor = List.generate(1, (_) => List.filled(1, 0.0));
-        _interpreter!.run(inputTensor, outputTensor);
-      }
+      // 6. Run inference
+      _interpreter!.run(inputTensor, outputTensor);
+      debugPrint("Raw TFLite output: ${outputTensor[0]}");
 
-      // 7. Process the result – find the class with the highest probability
-      // Interpret the output depending on its shape
+      // 7. Process the result
       String predictedLabel;
       double confidence;
-      if (outputTensor[0].length == 3) {
-        // Multi‑class case
-        final probabilities = outputTensor[0];
-        int bestIndex = 0;
-        double bestProb = probabilities[0];
-        for (int i = 1; i < probabilities.length; i++) {
-          if (probabilities[i] > bestProb) {
-            bestProb = probabilities[i];
-            bestIndex = i;
-          }
+      final rawOut = outputTensor[0];
+
+      if (rawOut.length == 2) {
+        // Standard NIH TFLite model output: Index 0 = Parasitized, Index 1 = Uninfected
+        final double pParasitized = rawOut[0];
+        final double pUninfected = rawOut[1];
+
+        if (pParasitized > pUninfected) {
+          predictedLabel = 'Parasitized';
+          confidence = (pParasitized <= 1.0) ? pParasitized * 100.0 : pParasitized;
+        } else {
+          predictedLabel = 'Uninfected';
+          confidence = (pUninfected <= 1.0) ? pUninfected * 100.0 : pUninfected;
         }
-        predictedLabel = _classLabels[bestIndex];
-        confidence = bestProb * 100;
-      } else if (outputTensor[0].length == 1) {
-        // Binary case – output is probability of Parasitized
-        final prob = outputTensor[0][0];
-        confidence = prob * 100;
-        predictedLabel = prob >= 0.5 ? 'Parasitized' : 'Uninfected';
+      } else if (rawOut.length == 1) {
+        // Single sigmoid output (0.0 to 1.0): >= 0.5 Parasitized, < 0.5 Uninfected
+        final prob = rawOut[0];
+        if (prob >= 0.5) {
+          predictedLabel = 'Parasitized';
+          confidence = prob * 100.0;
+        } else {
+          predictedLabel = 'Uninfected';
+          confidence = (1.0 - prob) * 100.0;
+        }
       } else {
         return {
           'status': 'Error',
-          'reason': 'Unexpected output size: ${outputTensor[0].length}',
+          'reason': 'Unexpected output size: ${rawOut.length}',
         };
       }
 
-      const double confidenceThreshold =
-          30.0; // lowered to catch low‑confidence predictions // percent lowered threshold for better invalid detection
-      debugPrint(
-        '→ $predictedLabel (${confidence.toStringAsFixed(1)}%)',
-      );
-      // Additional red‑dominance check: ensure a significant portion of pixels have red as the dominant channel
-      double redDominanceRatio() {
-        int redDominant = 0;
-        final total = resizedImage.width * resizedImage.height;
-        for (int y = 0; y < resizedImage.height; y++) {
-          for (int x = 0; x < resizedImage.width; x++) {
-            final pixel = resizedImage.getPixel(x, y);
-            final r = pixel.r.toInt();
-            final g = pixel.g.toInt();
-            final b = pixel.b.toInt();
-            if (r > g && r > b) redDominant++;
-          }
-        }
-        return redDominant / total;
-      }
+      // Ensure confidence is formatted reasonably (e.g. if raw value is >100 or negative)
+      if (confidence < 0) confidence = 0;
+      if (confidence > 100) confidence = 100;
 
-      if (redDominanceRatio() < 0.2) {
+      // Apply confidence threshold: require at least 60% confidence for a result
+      const double confidenceThreshold = 60.0;
+      if (confidence < confidenceThreshold) {
         return {
           'status': 'Invalid',
-          'confidence': 0.0,
-          'reason':
-              'Insufficient red‑dominant pixels; likely not a blood smear.',
+          'confidence': confidence,
+          'reason': 'Confidence below threshold; image may not be a blood smear.',
         };
       }
 
-      // If confidence is low or the model predicts 'Other', treat as Invalid
+      debugPrint('→ Final prediction: $predictedLabel (${confidence.toStringAsFixed(1)}%)');
 
-      if (predictedLabel == 'Other' || confidence < confidenceThreshold) {
+      // If predictedLabel is 'Other' treat as Invalid
+      if (predictedLabel == 'Other') {
         return {
           'status': 'Invalid',
-          'reason':
-              'This image does not appear to be a blood smear microscopy slide. Please upload a Giemsa-stained or bright-field blood smear image.',
+          'reason': 'This image does not match our diagnostic categories.',
         };
       }
 
@@ -218,7 +217,10 @@ class MLService {
       };
     } catch (e) {
       debugPrint("Error during real inference: $e");
-      return await _mockInference(imageFile);
+      return {
+        'status': 'Error',
+        'reason': 'Inference failed due to model error.',
+      };
     }
   }
 

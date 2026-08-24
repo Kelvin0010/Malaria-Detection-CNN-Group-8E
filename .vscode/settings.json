@@ -6,5 +6,8 @@
         "**/build/**": true
     },
     "java.autobuild.enabled": false,
-    "java.import.gradle.enabled": false
+    "java.import.gradle.enabled": true,
+    "java.import.gradle.java.home": "C:/Program Files/Android/Android Studio/jbr",
+    "java.jdt.ls.java.home": "C:/Program Files/Android/Android Studio/jbr",
+    "gradle.javaHome": "C:/Program Files/Android/Android Studio/jbr"
 }

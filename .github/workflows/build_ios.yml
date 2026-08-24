@@ -39,7 +39,7 @@ jobs:
           zip -r ../../../MalariaGuard-iOS.zip Runner.app
 
       - name: Upload iOS Build Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: MalariaGuard-iOS-App
           path: MalariaGuard-iOS.zip

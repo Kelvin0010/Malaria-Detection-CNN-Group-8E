@@ -497,7 +497,7 @@ class _ScanBottomSheetState extends State<ScanBottomSheet>
       _invalidReason = '';
     });
 
-    final result = await _mlService.processImage(File(_imagePath!));
+    final result = await _mlService.processImage(XFile(_imagePath!));
     final status = result['status'] as String;
     final confidence = (result['confidence'] as num).toDouble();
     final reason = result['reason'] as String? ?? '';

@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "malaria_app",
+            "request": "launch",
+            "type": "dart",
+            "args": [
+                "--web-port=5000"
+            ]
+        }
+    ]
+}

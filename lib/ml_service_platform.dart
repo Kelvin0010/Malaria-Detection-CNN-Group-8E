@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 
 // Import both implementations
@@ -9,7 +9,7 @@ import 'ml_service_stub.dart' as stub;
 /// Android/iOS and falls back to the stub on Windows/macOS/Linux desktop.
 class MLService {
   final _isMobile = !kIsWeb &&
-      (Platform.isAndroid || Platform.isIOS);
+      (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
 
   late final dynamic _delegate;
 
@@ -21,7 +21,7 @@ class MLService {
     }
   }
 
-  Future<Map<String, dynamic>> processImage(File imageFile) {
+  Future<Map<String, dynamic>> processImage(XFile imageFile) {
     return _delegate.processImage(imageFile);
   }
 }

@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
@@ -22,7 +22,7 @@ class MLService {
     debugPrint("Loaded real model successfully! Output shape: $_outputShape");
   }
 
-  Future<Map<String, dynamic>> processImage(File imageFile) async {
+  Future<Map<String, dynamic>> processImage(XFile imageFile) async {
     await _initialization;
 
     // 1. Read and decode the image

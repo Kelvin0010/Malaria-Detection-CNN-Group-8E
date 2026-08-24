@@ -18,30 +18,38 @@ class FirebaseService {
   // Sign in with Google
   Future<UserCredential?> signInWithGoogle() async {
     try {
-      // 1. Trigger the Google Authentication flow with Web Client ID
-      final GoogleSignIn googleSignIn = GoogleSignIn();
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      UserCredential userCredential;
 
-      if (googleUser == null) {
-        // User canceled the sign-in flow
-        return null;
+      if (kIsWeb) {
+        // On Web: use Firebase Auth's signInWithPopup directly.
+        // The google_sign_in package's signIn() popup is broken on web
+        // due to Cross-Origin-Opener-Policy headers blocking communication.
+        final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        googleProvider.addScope('email');
+        googleProvider.addScope('profile');
+        userCredential = await _auth.signInWithPopup(googleProvider);
+      } else {
+        // On Mobile: use the google_sign_in package flow
+        final GoogleSignIn googleSignIn = GoogleSignIn();
+        final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+        if (googleUser == null) {
+          // User canceled the sign-in flow
+          return null;
+        }
+
+        final GoogleSignInAuthentication googleAuth =
+            await googleUser.authentication;
+
+        final OAuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+
+        userCredential = await _auth.signInWithCredential(credential);
       }
 
-      // 2. Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
-      // 3. Create a new credential
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      // 4. Once signed in, return the UserCredential
-      final UserCredential userCredential =
-          await _auth.signInWithCredential(credential);
-
-      // 5. Save/Update user profile in Firestore safely
+      // Save/Update user profile in Firestore safely
       final user = userCredential.user;
       if (user != null) {
         try {

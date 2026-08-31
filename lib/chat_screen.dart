@@ -80,7 +80,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     // Initialize Gemini model with system instruction
     _model = GenerativeModel(
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash',
       apiKey: _kGeminiApiKey,
       systemInstruction: Content.system(_kSystemPrompt),
       generationConfig: GenerationConfig(

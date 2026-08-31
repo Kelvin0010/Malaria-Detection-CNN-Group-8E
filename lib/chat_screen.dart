@@ -1,32 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
-
-// ─────────────────────────────────────────────
-// IMPORTANT: Replace with your Gemini API key.
-// Get a free key at https://aistudio.google.com/apikey
-// ─────────────────────────────────────────────
-const String _kGeminiApiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
-
-// ─────────────────────────────────────────────
-// System prompt that keeps the AI focused on
-// concise, structured malaria health guidance.
-// ─────────────────────────────────────────────
-const String _kSystemPrompt = '''
-You are "Doctor AI", a concise AI health assistant in the MalariaGuard app.
-
-CRITICAL INSTRUCTIONS FOR CONCISENESS:
-1. Be short, direct, and action-oriented. NO conversational filler, intros, or repeated disclaimers.
-2. Structure EVERY response into these 3 compact sections:
-   📌 **Direct Answer**: (1-2 short sentences max)
-   💡 **Key Points**: (3 bullet points max, under 12 words per bullet)
-   👨‍⚕️ **Next Step**: (1 sentence recommendation)
-3. Keep the ENTIRE response under 120 words total.
-4. Focus strictly on malaria causes, symptoms, diagnosis, prevention, treatment, or scan results.
-5. If asked about unrelated topics, respond with 1 sentence declining and redirecting to malaria.
-6. Never recommend specific drug dosages — always say "as prescribed by a doctor".
-''';
 
 class ChatMessage {
   final String text;
@@ -63,10 +37,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   bool _isTyping = false;
   late AnimationController _dotController;
 
-  // Gemini chat session (maintains conversation history)
-  late final GenerativeModel _model;
-  late ChatSession _chat;
-
   // Suggestion chips
   List<String> _suggestions = [];
 
@@ -77,18 +47,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat();
-
-    // Initialize Gemini model with system instruction
-    _model = GenerativeModel(
-      model: 'gemini-1.5-flash',
-      apiKey: _kGeminiApiKey,
-      systemInstruction: Content.system(_kSystemPrompt),
-      generationConfig: GenerationConfig(
-        temperature: 0.2,
-        maxOutputTokens: 250,
-      ),
-    );
-    _chat = _model.startChat();
 
     _initializeChat();
   }
@@ -198,98 +156,160 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     });
     _scrollToBottom();
 
-    // Send to Gemini (with one automatic retry on transient errors)
-    try {
-      // Build context-enriched message so Gemini is aware of scan result
-      String contextPrefix = '';
-      if (widget.scanResult != null) {
-        contextPrefix =
-            '[Context: User\'s malaria scan result is "${widget.scanResult}" '
-            'with ${widget.confidence?.toStringAsFixed(1) ?? "unknown"}% confidence.] ';
-      }
+    // Instant, reliable offline medical assistant response
+    await Future.delayed(const Duration(milliseconds: 600));
 
-      GenerateContentResponse? response;
-      try {
-        response = await _chat.sendMessage(
-          Content.text('$contextPrefix$text'),
-        );
-      } catch (firstError) {
-        debugPrint('Gemini first attempt failed: $firstError — retrying...');
-        await Future.delayed(const Duration(seconds: 2));
-        // Retry once with a fresh chat session to recover from stale state
-        _chat = _model.startChat();
-        response = await _chat.sendMessage(
-          Content.text('$contextPrefix$text'),
-        );
-      }
+    if (!mounted) return;
 
-      if (!mounted) return;
-      final responseText = response.text?.trim() ??
-          "I'm sorry, I couldn't generate a response. Please try again.";
+    final responseText = _generateMedicalResponse(text);
 
-      setState(() {
-        _isTyping = false;
-        _messages.add(ChatMessage(
-          text: responseText,
-          isUser: false,
-          timestamp: DateTime.now(),
-        ));
-        _updateSuggestions(text);
-      });
-    } catch (e) {
-      if (!mounted) return;
-      debugPrint('Gemini error (after retry): $e');
-
-      final errStr = e.toString().toLowerCase();
-      String errorMsg;
-
-      if (errStr.contains('api_key') ||
-          errStr.contains('invalid') ||
-          errStr.contains('api-key') ||
-          errStr.contains('unauthenticated') ||
-          errStr.contains('permission')) {
-        errorMsg =
-            "🔑 **API Key Issue.**\n\n"
-            "The Gemini API key is missing or invalid. Please ensure a valid key "
-            "(starting with `AIzaSy`) is configured.\n\n"
-            "Get a free key at [Google AI Studio](https://aistudio.google.com/apikey).";
-      } else if (errStr.contains('not found') || errStr.contains('model')) {
-        errorMsg =
-            "⚙️ **AI Model Unavailable.**\n\n"
-            "The AI model could not be reached. This may be a temporary issue — "
-            "please try again in a moment.";
-      } else if (errStr.contains('network') ||
-          errStr.contains('socket') ||
-          errStr.contains('connection') ||
-          errStr.contains('timeout')) {
-        errorMsg =
-            "📶 **No Internet Connection.**\n\n"
-            "Doctor AI requires an active internet connection. "
-            "Please check your network and try again.";
-      } else if (errStr.contains('quota') || errStr.contains('rate')) {
-        errorMsg =
-            "⏳ **Request Limit Reached.**\n\n"
-            "Too many questions were sent too quickly. "
-            "Please wait a moment and try again.";
-      } else {
-        errorMsg =
-            "😔 **Doctor AI is temporarily unavailable.**\n\n"
-            "An unexpected error occurred. Please try again.\n\n"
-            "_Error: ${e.toString().split('\n').first}_";
-      }
-
-      setState(() {
-        _isTyping = false;
-        _messages.add(ChatMessage(
-          text: errorMsg,
-          isUser: false,
-          timestamp: DateTime.now(),
-          isError: true,
-        ));
-        _updateSuggestions(text);
-      });
-    }
+    setState(() {
+      _isTyping = false;
+      _messages.add(ChatMessage(
+        text: responseText,
+        isUser: false,
+        timestamp: DateTime.now(),
+      ));
+      _updateSuggestions(text);
+    });
     _scrollToBottom();
+  }
+
+  /// Instant, highly detailed and concise offline response generator
+  String _generateMedicalResponse(String query) {
+    final q = query.toLowerCase();
+
+    // 1. Medication / First Aid / Immediate Steps
+    if (q.contains('first aid') ||
+        q.contains('medication') ||
+        q.contains('medicine') ||
+        q.contains('pill') ||
+        q.contains('drug') ||
+        q.contains('take') ||
+        q.contains('pharmacy')) {
+      return "📌 **Direct Answer**\n"
+          "First aid for malaria focuses on managing fever while obtaining immediate clinical diagnosis and prescription treatment.\n\n"
+          "💡 **Key Points**\n"
+          "- 💊 **Fever Relief**: Paracetamol/Acetaminophen helps reduce high fever and body pain.\n"
+          "- 💧 **Hydration**: Drink clean water, soups, or Oral Rehydration Solution (ORS).\n"
+          "- 🚫 **No Self-Medication**: Antimalarials (like ACTs) require a confirmed lab test and prescription.\n\n"
+          "👨‍⚕️ **Next Step**\n"
+          "Visit a clinic or pharmacy lab immediately for an RDT blood test before taking antimalarial drugs.";
+    }
+
+    // 2. Symptoms / Signs
+    if (q.contains('symptom') ||
+        q.contains('feel') ||
+        q.contains('sick') ||
+        q.contains('sign') ||
+        q.contains('fever') ||
+        q.contains('chill') ||
+        q.contains('headache')) {
+      return "📌 **Direct Answer**\n"
+          "Malaria symptoms usually develop 10 to 15 days after an infective mosquito bite.\n\n"
+          "💡 **Key Points**\n"
+          "- 🌡️ **Primary Signs**: High fever, shaking chills, profuse sweating, and intense headache.\n"
+          "- 🦴 **Body Aches**: Joint pain, muscle fatigue, nausea, and loss of appetite.\n"
+          "- ⚠️ **Severe Warning**: Dark urine, yellowing eyes (jaundice), or confusion require emergency care.\n\n"
+          "👨‍⚕️ **Next Step**\n"
+          "If fever and chills persist, get a microscopic blood smear test at a medical clinic.";
+    }
+
+    // 3. Prevention & Protection
+    if (q.contains('prevent') ||
+        q.contains('protect') ||
+        q.contains('net') ||
+        q.contains('repellent') ||
+        q.contains('avoid') ||
+        q.contains('spray') ||
+        q.contains('bite')) {
+      return "📌 **Direct Answer**\n"
+          "Preventing malaria relies on avoiding mosquito bites and removing mosquito breeding grounds.\n\n"
+          "💡 **Key Points**\n"
+          "- 🛌 **Bed Nets**: Sleep under Long-Lasting Insecticidal Nets (LLINs) every night.\n"
+          "- 🧴 **Repellents**: Apply DEET, Picaridin, or OLE repellent on exposed skin.\n"
+          "- 🚰 **Environment**: Clear standing water, empty buckets, and trim high grass near homes.\n\n"
+          "👨‍⚕️ **Next Step**\n"
+          "Combine bed nets with indoor residual spraying for maximum protection.";
+    }
+
+    // 4. Treatment & Cure
+    if (q.contains('treat') ||
+        q.contains('cure') ||
+        q.contains('act') ||
+        q.contains('coartem') ||
+        q.contains('artemisin') ||
+        q.contains('chloroquine')) {
+      return "📌 **Direct Answer**\n"
+          "Malaria is completely curable with WHO-recommended antimalarial medications.\n\n"
+          "💡 **Key Points**\n"
+          "- 💊 **First-Line Cure**: Artemisinin-based Combination Therapies (ACTs) are the standard prescription.\n"
+          "- 🕒 **Full Dosage**: Complete the full 3-day treatment course even if symptoms disappear early.\n"
+          "- 🧬 **Drug Resistance**: Avoid outdated monotherapies to prevent treatment failure.\n\n"
+          "👨‍⚕️ **Next Step**\n"
+          "Consult a physician to get the exact prescription and dosage suited to your weight and age.";
+    }
+
+    // 5. Diagnostics & Accuracy
+    if (q.contains('scan') ||
+        q.contains('accurate') ||
+        q.contains('test') ||
+        q.contains('rdt') ||
+        q.contains('microscopy') ||
+        q.contains('lab') ||
+        q.contains('result')) {
+      return "📌 **Direct Answer**\n"
+          "Our local AI model scans cell images with high diagnostic sensitivity for preliminary screening.\n\n"
+          "💡 **Key Points**\n"
+          "- 🔬 **Blood Smear**: Clinical microscopy identifies exact parasite species and parasitemia levels.\n"
+          "- 🧪 **Rapid Test**: Rapid Diagnostic Tests (RDTs) deliver blood test results in 15 minutes.\n"
+          "- 📱 **AI Role**: Serves as an immediate digital triage assistant.\n\n"
+          "👨‍⚕️ **Next Step**\n"
+          "Always confirm positive or negative app scan results with a certified medical lab test.";
+    }
+
+    // 6. Recovery & Relapse
+    if (q.contains('recover') ||
+        q.contains('relapse') ||
+        q.contains('again') ||
+        q.contains('come back') ||
+        q.contains('survive')) {
+      return "📌 **Direct Answer**\n"
+          "Patients with uncomplicated malaria usually recover fully within 3 to 7 days of starting treatment.\n\n"
+          "💡 **Key Points**\n"
+          "- ✅ **Full Cure**: Early diagnosis ensures complete parasite clearance without long-term damage.\n"
+          "- 🔄 **Liver Relapse**: *P. vivax* parasites can lie dormant in the liver; doctors add Primaquine to prevent relapse.\n"
+          "- 🛌 **Rest**: Rest well, stay hydrated, and eat light nutritious meals during recovery.\n\n"
+          "👨‍⚕️ **Next Step**\n"
+          "Take all prescribed medication doses and re-test if fever returns within 14 days.";
+    }
+
+    // 7. High-Risk Vulnerable Groups
+    if (q.contains('child') ||
+        q.contains('baby') ||
+        q.contains('pregnant') ||
+        q.contains('kid') ||
+        q.contains('infant') ||
+        q.contains('vulnerable')) {
+      return "📌 **Direct Answer**\n"
+          "Young children under 5 and pregnant women are at highest risk of severe malaria.\n\n"
+          "💡 **Key Points**\n"
+          "- 👶 **Children**: Low immunity can lead quickly to severe anemia or cerebral malaria.\n"
+          "- 🤰 **Pregnancy**: Increases risks of maternal anemia, premature birth, and low birth weight.\n"
+          "- 🚨 **Emergency**: Any fever in these groups is a medical emergency.\n\n"
+          "👨‍⚕️ **Next Step**\n"
+          "Seek immediate emergency hospital care for any child or pregnant woman with fever.";
+    }
+
+    // 8. General / Fallback
+    return "📌 **Direct Answer**\n"
+        "Doctor AI provides instant, structured health guidance on malaria prevention, symptoms, and treatment.\n\n"
+        "💡 **Key Points**\n"
+        "- 🦟 **Transmission**: Spreads through bites of infected female *Anopheles* mosquitoes.\n"
+        "- 🌡️ **Watch Symptoms**: High fever, violent chills, sweating, and headache.\n"
+        "- 💊 **Medical Care**: Confirmed blood tests and prescription ACT drugs ensure full cure.\n\n"
+        "👨‍⚕️ **Next Step**\n"
+        "Ask any question about symptoms, prevention, treatment, or your scan results!";
   }
 
 

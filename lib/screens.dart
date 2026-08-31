@@ -2023,6 +2023,7 @@ class SettingsScreen extends StatelessWidget {
                               child: const Text('Cancel')),
                           TextButton(
                             onPressed: () async {
+                              await AppState.clearProfile();
                               await FirebaseService().logout();
                               if (!context.mounted) return;
                               Navigator.pushNamedAndRemoveUntil(

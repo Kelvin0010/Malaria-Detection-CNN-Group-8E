@@ -37,14 +37,9 @@ mixin _GoogleSignInMixin<T extends StatefulWidget> on State<T> {
       }
 
       if (!mounted) return;
-      final userProfile = await _firebaseService.getUserProfile();
+      await AppState.loadProfile();
 
       if (mounted) {
-        AppState.profileNotifier.value = ProfileData(
-          name: userProfile?['name'] ?? 'User',
-          title: userProfile?['title'] ?? 'Diagnostic Specialist',
-          imagePath: userProfile?['imagePath'] as String?,
-        );
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const MainLayout()),

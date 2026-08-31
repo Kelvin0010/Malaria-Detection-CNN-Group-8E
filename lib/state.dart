@@ -36,54 +36,76 @@ class AppState {
     ),
   );
 
-  // Load persisted profile data from SharedPreferences
+  // Load persisted profile data from SharedPreferences and Firestore
   static Future<void> loadProfile() async {
     final prefs = await SharedPreferences.getInstance();
-    final name = prefs.getString('profile_name') ?? '';
-    final title = prefs.getString('profile_title') ?? '';
-    final email = prefs.getString('profile_email') ?? '';
-    final phone = prefs.getString('profile_phone') ?? '';
-    final location = prefs.getString('profile_location') ?? '';
-    final imagePath = prefs.getString('profile_imagePath');
+    String name = prefs.getString('profile_name') ?? '';
+    String title = prefs.getString('profile_title') ?? '';
+    String email = prefs.getString('profile_email') ?? '';
+    String phone = prefs.getString('profile_phone') ?? '';
+    String location = prefs.getString('profile_location') ?? '';
+    String? imagePath = prefs.getString('profile_imagePath');
+
     // Load from Firebase Firestore if logged in
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final doc = await FirebaseFirestore.instance
+        // Read primary user document
+        final userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
-            .collection('profile')
-            .doc('data')
             .get();
-        if (doc.exists) {
-          final data = doc.data()!;
-          // Override with Firestore values if they exist
-          final nameFb = data['name'] as String? ?? name;
-          final titleFb = data['title'] as String? ?? title;
-          final emailFb = data['email'] as String? ?? email;
-          final phoneFb = data['phone'] as String? ?? phone;
-          final locationFb = data['location'] as String? ?? location;
-          final firestoreImagePath = data['imagePath'] as String?;
-          // Prioritize locally stored image path if available
-          final finalImagePath = imagePath ?? firestoreImagePath;
-          profileNotifier.value = ProfileData(
-            name: nameFb,
-            title: titleFb,
-            email: emailFb,
-            phone: phoneFb,
-            location: locationFb,
-            imagePath: finalImagePath,
-          );
-          return;
+
+        // Also check legacy sub-collection doc if primary doesn't have custom fields
+        DocumentSnapshot<Map<String, dynamic>>? legacyDoc;
+        if (!userDoc.exists || userDoc.data()?['title'] == null) {
+          legacyDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .collection('profile')
+              .doc('data')
+              .get();
+        }
+
+        final data = userDoc.data() ?? {};
+        final legacyData = legacyDoc?.data() ?? {};
+
+        final firestoreName = (data['name'] ?? legacyData['name'] ?? user.displayName) as String?;
+        final firestoreTitle = (data['title'] ?? legacyData['title']) as String?;
+        final firestoreEmail = (data['email'] ?? legacyData['email'] ?? user.email) as String?;
+        final firestorePhone = (data['phone'] ?? legacyData['phone']) as String?;
+        final firestoreLocation = (data['location'] ?? legacyData['location']) as String?;
+        final firestoreImagePath = (data['imagePath'] ?? legacyData['imagePath'] ?? user.photoURL) as String?;
+
+        if (firestoreName != null && firestoreName.isNotEmpty) name = firestoreName;
+        if (firestoreTitle != null && firestoreTitle.isNotEmpty) title = firestoreTitle;
+        if (firestoreEmail != null && firestoreEmail.isNotEmpty) email = firestoreEmail;
+        if (firestorePhone != null && firestorePhone.isNotEmpty) phone = firestorePhone;
+        if (firestoreLocation != null && firestoreLocation.isNotEmpty) location = firestoreLocation;
+        
+        // Prioritize non-null image path
+        if (firestoreImagePath != null && firestoreImagePath.isNotEmpty) {
+          imagePath = firestoreImagePath;
+        }
+
+        // Cache loaded values to SharedPreferences
+        await prefs.setString('profile_name', name);
+        await prefs.setString('profile_title', title);
+        await prefs.setString('profile_email', email);
+        await prefs.setString('profile_phone', phone);
+        await prefs.setString('profile_location', location);
+        if (imagePath != null) {
+          await prefs.setString('profile_imagePath', imagePath);
         }
       }
     } catch (e) {
       debugPrint('Error loading profile from Firestore: $e');
     }
-    // Fallback to SharedPreferences values
+
+    // Update global state notifier
     profileNotifier.value = ProfileData(
-      name: name,
-      title: title,
+      name: name.isNotEmpty ? name : 'User',
+      title: title.isNotEmpty ? title : 'Diagnostic Specialist',
       email: email,
       phone: phone,
       location: location,
@@ -93,6 +115,10 @@ class AppState {
 
   // Save current profile data to SharedPreferences and sync with Firebase
   static Future<void> saveProfile(ProfileData profile) async {
+    // 1. Immediately update UI state
+    profileNotifier.value = profile;
+
+    // 2. Persist to SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('profile_name', profile.name);
     await prefs.setString('profile_title', profile.title);
@@ -112,7 +138,7 @@ class AppState {
                 .ref()
                 .child('users')
                 .child(user.uid)
-                .child('profile.jpg');
+                .child('profile_${DateTime.now().millisecondsSinceEpoch}.jpg');
             await storageRef.putFile(file);
             uploadedImageUrl = await storageRef.getDownloadURL();
           }
@@ -126,30 +152,62 @@ class AppState {
     final imagePathToStore = uploadedImageUrl ?? profile.imagePath;
     if (imagePathToStore != null) {
       await prefs.setString('profile_imagePath', imagePathToStore);
+      profile.imagePath = imagePathToStore;
+      profileNotifier.value = profile;
     } else {
       await prefs.remove('profile_imagePath');
     }
 
-    // Sync to Firebase Firestore
+    // Sync to Firebase Firestore (both root user doc and legacy subcollection)
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final docRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('profile')
-            .doc('data');
-        await docRef.set({
+        final profileMap = {
           'name': profile.name,
           'title': profile.title,
           'email': profile.email,
           'phone': profile.phone,
           'location': profile.location,
           'imagePath': imagePathToStore,
-        }, SetOptions(merge: true));
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        // Update main user document
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set(profileMap, SetOptions(merge: true));
+
+        // Update legacy doc location for compatibility
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('profile')
+            .doc('data')
+            .set(profileMap, SetOptions(merge: true));
       }
     } catch (e) {
       debugPrint('Error syncing profile to Firestore: $e');
     }
+  }
+
+  // Clear local profile cache on logout
+  static Future<void> clearProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('profile_name');
+    await prefs.remove('profile_title');
+    await prefs.remove('profile_email');
+    await prefs.remove('profile_phone');
+    await prefs.remove('profile_location');
+    await prefs.remove('profile_imagePath');
+
+    profileNotifier.value = ProfileData(
+      name: '',
+      title: '',
+      email: '',
+      phone: '',
+      location: '',
+      imagePath: null,
+    );
   }
 }

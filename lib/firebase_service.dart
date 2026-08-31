@@ -61,15 +61,18 @@ class FirebaseService {
             await _firestore.collection('users').doc(user.uid).set({
               'uid': user.uid,
               'name': user.displayName ?? 'User',
-              'email': user.email,
+              'title': 'Diagnostic Specialist',
+              'email': user.email ?? '',
+              'phone': '',
+              'location': '',
               'imagePath': user.photoURL, // Store Google photo URL
               'createdAt': FieldValue.serverTimestamp(),
+              'lastLogin': FieldValue.serverTimestamp(),
             });
           } else {
-            // Update profile if they changed their Google name/photo
+            // Document exists: record login time, do NOT overwrite custom name/photo
             await _firestore.collection('users').doc(user.uid).update({
-              'name': user.displayName ?? 'User',
-              'imagePath': user.photoURL,
+              'lastLogin': FieldValue.serverTimestamp(),
             });
           }
         } catch (fsError) {

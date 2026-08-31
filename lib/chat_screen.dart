@@ -198,7 +198,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     });
     _scrollToBottom();
 
-    // Send to Gemini
+    // Send to Gemini (with one automatic retry on transient errors)
     try {
       // Build context-enriched message so Gemini is aware of scan result
       String contextPrefix = '';
@@ -208,9 +208,20 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             'with ${widget.confidence?.toStringAsFixed(1) ?? "unknown"}% confidence.] ';
       }
 
-      final response = await _chat.sendMessage(
-        Content.text('$contextPrefix$text'),
-      );
+      GenerateContentResponse? response;
+      try {
+        response = await _chat.sendMessage(
+          Content.text('$contextPrefix$text'),
+        );
+      } catch (firstError) {
+        debugPrint('Gemini first attempt failed: $firstError — retrying...');
+        await Future.delayed(const Duration(seconds: 2));
+        // Retry once with a fresh chat session to recover from stale state
+        _chat = _model.startChat();
+        response = await _chat.sendMessage(
+          Content.text('$contextPrefix$text'),
+        );
+      }
 
       if (!mounted) return;
       final responseText = response.text?.trim() ??
@@ -227,29 +238,44 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       });
     } catch (e) {
       if (!mounted) return;
-      debugPrint('Gemini error: $e');
+      debugPrint('Gemini error (after retry): $e');
 
-      // Check if it's a model not found / unsupported error or API key error
       final errStr = e.toString().toLowerCase();
       String errorMsg;
-      
-      if (errStr.contains('not found') || errStr.contains('supported')) {
-        // Fallback to gemini-1.5-flash-latest just in case
-        errorMsg = "⚙️ **AI configuration issue.**\n\n"
-            "This model version may not be available on your project yet. "
-            "Please check that you are using a standard Gemini API key from Google AI Studio.";
-      } else if (errStr.contains('api_key') ||
+
+      if (errStr.contains('api_key') ||
           errStr.contains('invalid') ||
-          errStr.contains('api-key')) {
+          errStr.contains('api-key') ||
+          errStr.contains('unauthenticated') ||
+          errStr.contains('permission')) {
         errorMsg =
-            "⚙️ **Invalid API Key.**\n\n"
-            "The Gemini API key starts with `AQ.` which is not valid. Please get a free API key starting with `AIzaSy` from [Google AI Studio](https://aistudio.google.com/apikey).";
-      } else if (errStr.contains('network') || errStr.contains('socket') || errStr.contains('connection')) {
+            "🔑 **API Key Issue.**\n\n"
+            "The Gemini API key is missing or invalid. Please ensure a valid key "
+            "(starting with `AIzaSy`) is configured.\n\n"
+            "Get a free key at [Google AI Studio](https://aistudio.google.com/apikey).";
+      } else if (errStr.contains('not found') || errStr.contains('model')) {
         errorMsg =
-            "📶 **No internet connection.**\n\n"
-            "Please check your internet connection and try again.";
+            "⚙️ **AI Model Unavailable.**\n\n"
+            "The AI model could not be reached. This may be a temporary issue — "
+            "please try again in a moment.";
+      } else if (errStr.contains('network') ||
+          errStr.contains('socket') ||
+          errStr.contains('connection') ||
+          errStr.contains('timeout')) {
+        errorMsg =
+            "📶 **No Internet Connection.**\n\n"
+            "Doctor AI requires an active internet connection. "
+            "Please check your network and try again.";
+      } else if (errStr.contains('quota') || errStr.contains('rate')) {
+        errorMsg =
+            "⏳ **Request Limit Reached.**\n\n"
+            "Too many questions were sent too quickly. "
+            "Please wait a moment and try again.";
       } else {
-        errorMsg = "😔 I had trouble answering that. Here is a simulated response:\n\n${_simulateMedicalResponse(text)}";
+        errorMsg =
+            "😔 **Doctor AI is temporarily unavailable.**\n\n"
+            "An unexpected error occurred. Please try again.\n\n"
+            "_Error: ${e.toString().split('\n').first}_";
       }
 
       setState(() {
@@ -266,64 +292,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _scrollToBottom();
   }
 
-  /// Dynamic local fallback response generator for malaria-related questions.
-  String _simulateMedicalResponse(String query) {
-    final q = query.toLowerCase();
 
-    if (q.contains('vaccine') || q.contains('r21') || q.contains('rtss') || q.contains('immun')) {
-      return "**Malaria Vaccines:**\n\n"
-          "Yes! There are currently **two WHO-recommended vaccines**:\n"
-          "1. 💉 **R21/Matrix-M** — The newest vaccine, highly effective (>75% efficacy), cheap, and manufactured in mass quantities.\n"
-          "2. 💉 **RTS,S/AS01 (Mosquirix)** — The first approved malaria vaccine, used primarily in children in high-transmission areas.\n\n"
-          "These vaccines are key milestones in malaria eradication, especially for children under 5.";
-    }
-
-    if (q.contains('relapse') || q.contains('come back') || q.contains('recur') || q.contains('again')) {
-      return "**Relapsing Malaria:**\n\n"
-          "Yes, certain species of malaria parasites (**Plasmodium vivax** and **Plasmodium ovale**) can lie dormant in the liver as **hypnozoites**.\n\n"
-          "These dormant parasites can reactivate weeks, months, or even years later, causing a relapse. "
-          "To prevent this, doctors prescribe **Primaquine** or **Tafenoquine** to clear the liver stage after treating the blood stage.";
-    }
-
-    if (q.contains('child') || q.contains('baby') || q.contains('pregnant') || q.contains('kid')) {
-      return "**High-Risk Vulnerable Groups:**\n\n"
-          "Malaria is particularly dangerous for:\n"
-          "- 👶 **Children under 5** — they haven't developed partial immunity and can quickly progress to severe malaria.\n"
-          "- 🤰 **Pregnant women** — malaria increases the risk of maternal anemia, miscarriage, premature birth, and low birth weight.\n\n"
-          "If a child or pregnant woman shows any fever symptoms, seek professional medical care **immediately**.";
-    }
-
-    if (q.contains('resistance') || q.contains('drug') || q.contains('resistant') || q.contains('chloroquine')) {
-      return "**Antimalarial Drug Resistance:**\n\n"
-          "Malaria parasites frequently mutate to survive drugs. Chloroquine resistance is now widespread. "
-          "Because of this, modern treatment relies on **ACTs (Artemisinin-based Combination Therapies)**, which combine two different drugs to kill the parasite.\n\n"
-          "However, partial resistance to artemisinin has been detected in parts of Southeast Asia and Africa, which is a major global health concern.";
-    }
-
-    if (q.contains('accurate') || q.contains('how well') || q.contains('test') || q.contains('model')) {
-      return "**Diagnostic Accuracy:**\n\n"
-          "Our local CNN model is trained on a dataset of cell images to achieve high diagnostic sensitivity. "
-          "However, mobile camera setups, lighting, and blood smear prep vary.\n\n"
-          "Always confirm positive or negative scans with a clinical **microscopy test or Rapid Diagnostic Test (RDT)** at a hospital.";
-    }
-
-    if (q.contains('life') || q.contains('cycle') || q.contains('how') && q.contains('spread')) {
-      return "**Malaria Parasite Life Cycle:**\n\n"
-          "1. 🦟 **Bite**: Infected female Anopheles mosquito injects sporozoites into the blood.\n"
-          "2. 🫁 **Liver Stage**: Parasites multiply in the liver for 1–2 weeks.\n"
-          "3. 🩸 **Blood Stage**: Parasites enter and burst red blood cells (causing fever, chills).\n"
-          "4. 🔄 **Transmission**: A new mosquito bites the infected person, picks up the parasite, and spreads it to others.";
-    }
-
-    // Generic malaria fallback
-    return "**Malaria Health Assistant:**\n\n"
-        "Malaria is a life-threatening disease caused by the bite of an infected female Anopheles mosquito. "
-        "Key aspects to keep in mind:\n"
-        "- 🌡️ **Symptoms**: Fever, chills, sweat, headache, muscle ache.\n"
-        "- 🛡️ **Prevention**: Bed nets, mosquito repellent, environmental hygiene.\n"
-        "- 💊 **Cure**: Artemisinin-based therapies (ACTs).\n\n"
-        "Please let me know if you would like me to detail symptoms, prevention, or treatment options.";
-  }
 
 
 
